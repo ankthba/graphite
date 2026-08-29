@@ -1,0 +1,19 @@
+{
+  "name": "graphite-3d",
+  "version": "1.0.0",
+  "description": "A beautiful 3D graphing calculator — surfaces, curves, implicit plots, vector fields, and calculus tools",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node tests/run-all.mjs"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "vite": "^7.3.0",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}
