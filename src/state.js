@@ -65,6 +65,7 @@ const SLIDER_NAME_POOL = ['a', 'b', 'c', 'd', 'k', 'm', 'n', 'p', 'q', 's', 'w',
 export class AppState {
   constructor() {
     this.items = [];
+    this.epoch = 0; // bumped on every scene load; stale debounced edits check it
     // false while viewing a shared scene the user hasn't touched — protects
     // their own saved scene from being silently overwritten
     this.persist = true;
@@ -210,15 +211,18 @@ export class AppState {
   toJSON() {
     return {
       v: 1,
-      settings: this.settings,
+      // deep-copied: scene tabs must never alias the live settings object
+      settings: structuredClone(this.settings),
       items: this.items.map(({ runtime, ...rest }) => rest),
     };
   }
 
   loadJSON(data) {
     try {
+      this.epoch = (this.epoch || 0) + 1; // invalidates debounced edits from the old scene
       this.items = (data.items || []).map((it) => ({ ...it, runtime: {} }));
       Object.assign(this.settings, data.settings || {});
+      this.settings.bounds = { ...this.settings.bounds };
       let maxN = 0;
       for (const it of this.items) {
         const m = /^it(\d+)$/.exec(it.id || '');

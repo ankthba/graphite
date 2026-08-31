@@ -58,7 +58,7 @@
       </div>
       <div id="viewport"></div>
       <div id="hud-tr">
-        <button class="hud-btn" id="btn-inspect" title="Inspect: click a surface for tangent plane, gradient & partial derivatives">
+        <button class="hud-btn" id="btn-inspect" title="Inspect — tangent plane, gradient &amp; partials on z = f(x,y) surfaces; ∇F on level surfaces; div/curl + flow lines on vector fields">
           <span class="codicon codicon-inspect"></span>
         </button>
       </div>
@@ -74,11 +74,14 @@
     </main>
 
     <footer id="statusbar">
-      <span class="sb-item" id="sb-status">Ready</span>
+      <span class="sb-item" id="sb-status">✓ Ready</span>
       <span class="sb-item" id="sb-count"></span>
+      <span class="sb-item" id="sb-inspect"></span>
       <span class="sb-spacer"></span>
       <span class="sb-item" id="sb-bounds"></span>
-      <span class="sb-item">aniketh.net/graphite</span>
+      <a class="sb-item sb-link" href="https://github.com/ankthba/graphite" target="_blank" rel="noopener" title="Source on GitHub">
+        <span class="codicon codicon-github-alt"></span> graphite
+      </a>
     </footer>
   </div>
   <script type="module" src="/src/main.js"></script>

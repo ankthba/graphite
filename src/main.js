@@ -52,8 +52,17 @@ function loadScenesStore() {
   return { order: [id], active: id, scenes: { [id]: { name: 'Scene 1', data } } };
 }
 const scenesStore = loadScenesStore();
+let storeSaveFailed = false;
 function saveScenesStore() {
-  try { localStorage.setItem(SCENES_KEY, JSON.stringify(scenesStore)); } catch { /* full */ }
+  try {
+    localStorage.setItem(SCENES_KEY, JSON.stringify(scenesStore));
+    storeSaveFailed = false;
+  } catch {
+    if (!storeSaveFailed) {
+      storeSaveFailed = true;
+      toast('Browser storage is full — changes are NOT being saved');
+    }
+  }
 }
 state.persistFn = (json) => {
   const sc = scenesStore.scenes[scenesStore.active];
@@ -83,6 +92,8 @@ if (shareMatch) {
       scenesStore.active = id;
       saveScenesStore();
       loaded = true;
+      // one-shot import: drop the fragment so reloads don't duplicate the tab
+      history.replaceState(null, '', location.pathname + location.search);
     }
   } catch { /* bad link */ }
 }
@@ -108,10 +119,11 @@ const panel = new Panel(state, manager, {
   items: $('items'), addBtn: $('btn-add'), addMenu: $('add-menu'),
 });
 const inspector = new Inspector(viewport, state, manager, {
-  card: $('inspect-card'), btn: $('btn-inspect'),
+  card: $('inspect-card'), btn: $('btn-inspect'), status: $('sb-inspect'),
 });
 
-if (loaded && state.items.length) {
+if (loaded) {
+  // an intentionally empty scene stays empty — only first-ever boot gets the demo
   panel.renderAll();
   state.rebuildAll();
 } else {
@@ -169,13 +181,35 @@ function updateStatus() {
   const b = state.settings.bounds;
   $('sb-bounds').textContent =
     `x ${b.xmin}..${b.xmax}  y ${b.ymin}..${b.ymax}  z ${b.zmin}..${b.zmax}`;
+  updateProblems();
+}
+// honest health indicator: counts expressions that currently fail to plot
+function updateProblems() {
+  let problems = 0;
+  for (const it of state.items) {
+    const r = it.runtime || {};
+    if (Object.keys(r.errors || {}).length || (r.unknown || []).length) problems++;
+  }
+  const el = $('sb-status');
+  if (problems) {
+    el.textContent = `⚠ ${problems} problem${problems === 1 ? '' : 's'}`;
+    el.classList.add('sb-warn');
+  } else {
+    el.textContent = '✓ Ready';
+    el.classList.remove('sb-warn');
+  }
 }
 state.on('items-changed', updateStatus);
+state.on('runtime-updated', updateProblems);
 updateStatus();
 
 /* ---------- scene tab strip ---------- */
 function applySceneToApp(data, keepDark) {
   inspector.clear();
+  // purge the outgoing scene's meshes through the normal disposal path
+  for (const it of [...state.items]) state.emit('item-removed', it);
+  panel.openId = null;
+  panel.openAdv.clear();
   state.loadJSON(data);
   if (keepDark !== undefined) state.settings.dark = keepDark;
   applyTheme();
@@ -221,6 +255,11 @@ function addScene() {
 function closeScene(id) {
   const i = scenesStore.order.indexOf(id);
   if (i < 0) return;
+  const sc = scenesStore.scenes[id];
+  const n = (id === scenesStore.active ? state.items : sc?.data?.items || []).length;
+  if (n && !window.confirm(`Close "${sc.name}"? Its ${n} expression${n === 1 ? '' : 's'} will be deleted.`)) {
+    return;
+  }
   scenesStore.order.splice(i, 1);
   delete scenesStore.scenes[id];
   if (!scenesStore.order.length) {
@@ -246,12 +285,30 @@ function renderTabs() {
     const t = document.createElement('div');
     t.className = 'tab' + (id === scenesStore.active ? ' active' : '');
     t.innerHTML = `<span class="codicon codicon-graph"></span><span class="tab-name"></span>`;
-    t.querySelector('.tab-name').textContent = sc.name;
+    const nameEl = t.querySelector('.tab-name');
+    nameEl.textContent = sc.name;
     t.title = `${sc.name} — double-click to rename`;
     t.onclick = () => switchScene(id);
+    // inline rename, VS Code style
     t.ondblclick = () => {
-      const name = window.prompt('Rename scene', sc.name);
-      if (name && name.trim()) { sc.name = name.trim().slice(0, 40); saveScenesStore(); renderTabs(); }
+      const inp = document.createElement('input');
+      inp.className = 'tab-rename';
+      inp.value = sc.name;
+      inp.onclick = (e) => e.stopPropagation();
+      const commit = () => {
+        const v = inp.value.trim().slice(0, 40);
+        if (v) { sc.name = v; saveScenesStore(); }
+        renderTabs();
+      };
+      inp.onblur = commit;
+      inp.onkeydown = (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') inp.blur();
+        else if (e.key === 'Escape') { inp.onblur = null; renderTabs(); }
+      };
+      nameEl.replaceWith(inp);
+      inp.focus();
+      inp.select();
     };
     if (scenesStore.order.length > 1) {
       const x = document.createElement('button');
@@ -371,7 +428,9 @@ $('btn-shot').onclick = async () => {
 
 /* ---------- HUD ---------- */
 $('btn-inspect').addEventListener('click', () => {
-  if (inspector.active) toast('Inspect on — click a surface, level surface, or vector field');
+  if (inspector.active) {
+    toast('Inspect on — full analysis on z = f(x,y) surfaces; ∇F on level surfaces; div/curl on fields');
+  }
 });
 $('btn-home').onclick = () => viewport.resetView(true);
 $('btn-zoom-in').onclick = () => viewport.zoomBy(0.78);
@@ -385,7 +444,7 @@ viewport.addTicker(() => {
   lastT = now;
   let animating = false;
   for (const it of state.items) {
-    if (it.type === 'slider' && it.playing) {
+    if (it.type === 'slider' && it.playing && !it.runtime._scrub) {
       animating = true;
       const range = it.max - it.min;
       if (range > 0) {
@@ -423,7 +482,8 @@ function toast(msg) {
 
 /* ---------- keyboard ---------- */
 document.addEventListener('keydown', (e) => {
-  if (e.target.matches('input, textarea')) return;
+  if (e.target.closest?.('input, textarea, math-field, [contenteditable]')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'r') viewport.resetView(true);
   if (e.key === 'i') inspector.toggle();
 });

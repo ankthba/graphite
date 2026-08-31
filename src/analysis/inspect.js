@@ -29,6 +29,7 @@ export class Inspector {
     this.manager = manager;
     this.card = els.card;
     this.btn = els.btn;
+    this.statusEl = els.status || null;
     this.active = false;
     this.target = null;   // { kind, itemId, ... }
     this.overlay = null;
@@ -147,6 +148,11 @@ export class Inspector {
 
     this.buildSurfaceOverlay(item, meta, a, b, c, fx, fy, { fxx, fyy, fxy });
     this.buildSurfaceCard(a, b, c, fx, fy, gradMag, sfx, sfy, { fxx, fyy, fxy, disc });
+    this._setStatus(`inspect (${fmt(a)}, ${fmt(b)}, ${fmt(c)})`);
+  }
+
+  _setStatus(txt) {
+    if (this.statusEl) this.statusEl.textContent = txt || '';
   }
 
   buildSurfaceOverlay(item, meta, a, b, c, fx, fy, H) {
@@ -436,6 +442,7 @@ export class Inspector {
       <div style="margin-top:6px" class="note">The <span style="color:#0bab9c">teal curve</span> is the flow line through p. Click empty space to probe on the z = 0 plane.</div>`;
     this.card.hidden = false;
     this.card.querySelector('.ins-close').onclick = () => this.clear();
+    this._setStatus(`inspect (${fmt(p[0])}, ${fmt(p[1])}, ${fmt(p[2])})`);
   }
 
   /* ================= implicit surface ================= */
@@ -494,6 +501,7 @@ export class Inspector {
       <div style="margin-top:6px" class="note">∇F is normal to the level surface — shown with its tangent plane.</div>`;
     this.card.hidden = false;
     this.card.querySelector('.ins-close').onclick = () => this.clear();
+    this._setStatus(`inspect (${fmt(p[0])}, ${fmt(p[1])}, ${fmt(p[2])})`);
   }
 
   /* ================= misc ================= */
@@ -516,6 +524,7 @@ export class Inspector {
       </table>`;
     this.card.hidden = false;
     this.card.querySelector('.ins-close').onclick = () => this.clear();
+    this._setStatus(`inspect (${fmt(p.x)}, ${fmt(p.y)}, ${fmt(p.z)})`);
   }
 
   clearOverlay() {
@@ -533,6 +542,7 @@ export class Inspector {
     this._cardKey = null;
     this.clearOverlay();
     this.card.hidden = true;
+    this._setStatus('');
   }
 }
 

@@ -3,6 +3,15 @@ import { PALETTE, COLORMAP_NAMES, colormapCSS } from '../colormaps.js';
 import { makeMathField, makeEquationField, makeMathPreview, previewLatex } from './mathinput.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// spelled-out greek names display as symbols (sliders created from φ, θ, …)
+const GREEK = {
+  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', zeta: 'ζ',
+  eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν',
+  xi: 'ξ', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ', chi: 'χ',
+  psi: 'ψ', omega: 'ω',
+};
+const dispName = (n) => GREEK[n] || n;
 const debounce = (fn, ms) => {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 };
@@ -121,23 +130,32 @@ export class Panel {
       menu.appendChild(b);
       rows.push({ el: b, head: false, text: `${entry.title} ${entry.sub}`.toLowerCase() });
     }
+    // VS Code quick-pick behavior: filter + arrow-key highlight + Enter
+    let focusIdx = 0;
+    const visible = () => rows.filter((r) => !r.head && r.el.style.display !== 'none');
+    const paintFocus = () => {
+      const vis = visible();
+      focusIdx = Math.min(focusIdx, Math.max(0, vis.length - 1));
+      rows.forEach((r) => !r.head && r.el.classList.remove('focused'));
+      vis[focusIdx]?.el.classList.add('focused');
+      vis[focusIdx]?.el.scrollIntoView({ block: 'nearest' });
+    };
     const applyFilter = () => {
       const q = search.value.trim().toLowerCase();
-      let lastHead = null;
       for (const r of rows) {
-        if (r.head) { r.el.style.display = q ? 'none' : ''; lastHead = r.el; continue; }
-        const show = !q || r.text.includes(q);
-        r.el.style.display = show ? '' : 'none';
+        if (r.head) { r.el.style.display = q ? 'none' : ''; continue; }
+        r.el.style.display = (!q || r.text.includes(q)) ? '' : 'none';
       }
+      focusIdx = 0;
+      paintFocus();
     };
     search.oninput = applyFilter;
     search.onkeydown = (e) => {
-      if (e.key === 'Enter') {
-        const first = rows.find((r) => !r.head && r.el.style.display !== 'none');
-        first?.el.click();
-      } else if (e.key === 'Escape') {
-        menu.setAttribute('hidden', '');
-      }
+      const vis = visible();
+      if (e.key === 'ArrowDown') { e.preventDefault(); focusIdx = (focusIdx + 1) % Math.max(1, vis.length); paintFocus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); focusIdx = (focusIdx - 1 + vis.length) % Math.max(1, vis.length); paintFocus(); }
+      else if (e.key === 'Enter') { vis[focusIdx]?.el.click(); }
+      else if (e.key === 'Escape') { menu.setAttribute('hidden', ''); }
     };
     this._paletteSearch = search;
     this._paletteFilter = applyFilter;
@@ -148,15 +166,23 @@ export class Panel {
     };
   }
 
+  // wraps a callback so it becomes a no-op if the scene changed since creation
+  guarded(fn) {
+    const ep = this.state.epoch;
+    return (...args) => { if (this.state.epoch === ep) fn(...args); };
+  }
+
   openPalette() {
     const menu = this.els.addMenu;
     this._paletteSearch.value = '';
     this._paletteFilter();
     menu.removeAttribute('hidden');
+    menu.scrollTop = 0;
     requestAnimationFrame(() => this._paletteSearch.focus());
   }
 
   renderAll() {
+    try { if (window.mathVirtualKeyboard?.visible) window.mathVirtualKeyboard.hide(); } catch { /* fine */ }
     const root = this.els.items;
     root.innerHTML = '';
     this.cards.clear();
@@ -229,6 +255,7 @@ export class Panel {
       const prev = this.previewFor(item);
       head.appendChild(prev);
       row._preview = prev;
+      row._previewKey = this.previewKey(item);
       const kind = document.createElement('span');
       kind.className = 'nrow-kind';
       kind.textContent = TYPE_LABEL[item.type === 'surface' ? item.mode : item.type] || item.type;
@@ -277,6 +304,11 @@ export class Panel {
     return row;
   }
 
+  previewKey(item) {
+    return ['type', 'mode', 'expr', 'level', 'ex', 'ey', 'ez', 'ep', 'eq', 'er']
+      .map((k) => item[k] ?? '').join('\u0001');
+  }
+
   toggleOpen(id) {
     this.openId = this.openId === id ? null : id;
     this.renderAll();
@@ -285,17 +317,22 @@ export class Panel {
   // typeset one-line summary for a collapsed row
   previewFor(item) {
     const L = (e) => previewLatex(e) ?? String(e ?? '');
+    const part = (e) => (String(e ?? '').trim() ? L(e) : '\\square');
+    const tuple = (a, b, c, open, close) =>
+      [a, b, c].every((v) => !String(v ?? '').trim())
+        ? ''
+        : `${open} ${part(a)},\\, ${part(b)},\\, ${part(c)} ${close}`;
     let latex = '';
     if (item.type === 'surface') latex = L(item.expr);
     else if (item.type === 'implicit') {
       latex = String(item.expr ?? '').trim() ? `${L(item.expr)} = ${L(item.level ?? '0')}` : '';
     }
     else if (item.type === 'curve' || item.type === 'parametric' || item.type === 'vector') {
-      latex = `\\left\\langle ${L(item.ex)},\\, ${L(item.ey)},\\, ${L(item.ez)} \\right\\rangle`;
+      latex = tuple(item.ex, item.ey, item.ez, '\\left\\langle', '\\right\\rangle');
     } else if (item.type === 'field') {
-      latex = `\\left\\langle ${L(item.ep)},\\, ${L(item.eq)},\\, ${L(item.er)} \\right\\rangle`;
+      latex = tuple(item.ep, item.eq, item.er, '\\left\\langle', '\\right\\rangle');
     } else if (item.type === 'point') {
-      latex = `\\left( ${L(item.ex)},\\, ${L(item.ey)},\\, ${L(item.ez)} \\right)`;
+      latex = tuple(item.ex, item.ey, item.ez, '\\left(', '\\right)');
     }
     if (!latex.trim()) {
       const d = document.createElement('span');
@@ -310,7 +347,7 @@ export class Panel {
   sliderHead(item, head) {
     const name = document.createElement('span');
     name.className = 'srow-name';
-    name.textContent = item.name;
+    name.textContent = dispName(item.name);
     const eq = document.createElement('span');
     eq.className = 'slider-eq'; eq.textContent = '=';
     const val = document.createElement('input');
@@ -327,6 +364,10 @@ export class Panel {
     track.min = item.min; track.max = item.max; track.step = item.step;
     track.value = item.value;
     track.onclick = (e) => e.stopPropagation();
+    track.onpointerdown = () => { const it = this.state.get(item.id); if (it) it.runtime._scrub = true; };
+    const endScrub = () => { const it = this.state.get(item.id); if (it) it.runtime._scrub = false; };
+    track.onpointerup = endScrub;
+    track.onpointercancel = endScrub;
     track.oninput = () => {
       this.state.setSliderValue(item.id, +track.value, { fromUI: true });
       val.value = fmtNum(+track.value);
@@ -352,15 +393,17 @@ export class Panel {
     lab.className = 'expr-label'; lab.innerHTML = label;
     const err = document.createElement('div');
     err.className = 'err-msg'; err.dataset.errFor = prop; err.style.display = 'none';
-    const apply = debounce((expr) => this.state.patch(item.id, { [prop]: expr }), 200);
+    const apply = debounce(this.guarded((expr) => this.state.patch(item.id, { [prop]: expr })), 200);
     const mf = makeMathField(item[prop] ?? '', {
       placeholder,
       onExpr: (expr) => {
+        delete err.dataset.latexErr;
         err.style.display = 'none';
         mf.classList.remove('err');
         apply(expr);
       },
       onBadLatex: (msg) => {
+        err.dataset.latexErr = '1';
         err.textContent = msg;
         err.style.display = '';
         mf.classList.add('err');
@@ -391,10 +434,10 @@ export class Panel {
       const mk = (prop) => {
         const inp = document.createElement('input');
         inp.className = 'mini-input'; inp.value = item[prop]; inp.spellcheck = false;
-        inp.oninput = debounce(() => {
+        inp.oninput = debounce(this.guarded(() => {
           inp.classList.toggle('err', !Number.isFinite(this.state.evalConst(inp.value, NaN)));
           this.state.patch(item.id, { [prop]: inp.value });
-        }, 300);
+        }), 300);
         return inp;
       };
       r.append(Object.assign(document.createElement('span'), { className: 'dvar', textContent: lab }),
@@ -507,11 +550,11 @@ export class Panel {
     row.innerHTML = `<span class="expr-label">${labels[item.mode] || 'g'} =</span>`;
     const err = document.createElement('div');
     err.className = 'err-msg'; err.dataset.errFor = 'restrict'; err.style.display = 'none';
-    const applyRestrict = debounce((expr) => this.state.patch(item.id, { restrict: expr }), 250);
+    const applyRestrict = debounce(this.guarded((expr) => this.state.patch(item.id, { restrict: expr })), 250);
     const mfr = makeMathField(item.restrict || '', {
       placeholder: item.mode === 'cartesian' ? 'x^2 + y^2 - 16' : 'empty for none',
-      onExpr: (expr) => { err.style.display = 'none'; mfr.classList.remove('err'); applyRestrict(expr); },
-      onBadLatex: (msg) => { err.textContent = msg; err.style.display = ''; mfr.classList.add('err'); },
+      onExpr: (expr) => { delete err.dataset.latexErr; err.style.display = 'none'; mfr.classList.remove('err'); applyRestrict(expr); },
+      onBadLatex: (msg) => { err.dataset.latexErr = '1'; err.textContent = msg; err.style.display = ''; mfr.classList.add('err'); },
     });
     mfr.dataset.prop = 'restrict';
     row.appendChild(mfr);
@@ -651,15 +694,17 @@ export class Panel {
     row.className = 'expr-row';
     const err = document.createElement('div');
     err.className = 'err-msg'; err.dataset.errFor = 'expr'; err.style.display = 'none';
-    const apply = debounce((L, R) => this.state.patch(item.id, { expr: L, level: R }), 220);
+    const apply = debounce(this.guarded((L, R) => this.state.patch(item.id, { expr: L, level: R })), 220);
     const mf = makeEquationField(item.expr, item.level, {
       placeholder: 'x^2 + y^2 + z^2 = 9',
       onEquation: (L, R) => {
+        delete err.dataset.latexErr;
         err.style.display = 'none';
         mf.classList.remove('err');
         apply(L, R);
       },
       onBadLatex: (msg) => {
+        err.dataset.latexErr = '1';
         err.textContent = msg;
         err.style.display = '';
         mf.classList.add('err');
@@ -744,7 +789,7 @@ export class Panel {
       if (/^[a-z](\d+)?$/i.test(v) && v !== 'e' && !this.state.sliderItem(v)) {
         this.state.patch(item.id, { name: v }, { geometry: false });
         this.state.rebuildAll();
-        row.querySelector('.srow-name').textContent = v;
+        row.querySelector('.srow-name').textContent = dispName(v);
       } else name.value = item.name;
     };
     rowName.appendChild(name);
@@ -819,12 +864,17 @@ export class Panel {
         || ((item.runtime?.unknown || []).length ? `Unknown: ${item.runtime.unknown.join(', ')}` : '');
     }
     if (card._preview && this.openId !== item.id) {
-      const fresh = this.previewFor(item);
-      card._preview.replaceWith(fresh);
-      card._preview = fresh;
+      const key = this.previewKey(item);
+      if (card._previewKey !== key) {
+        const fresh = this.previewFor(item);
+        card._preview.replaceWith(fresh);
+        card._preview = fresh;
+        card._previewKey = key;
+      }
     }
 
     for (const errDiv of card.querySelectorAll('[data-err-for]')) {
+      if (errDiv.dataset.latexErr) continue; // the field itself is unparseable; keep that message
       const prop = errDiv.dataset.errFor;
       const msg = errors[prop];
       errDiv.style.display = msg ? '' : 'none';
@@ -859,7 +909,7 @@ export class Panel {
       for (const name of item.runtime?.unknown || []) {
         const b = document.createElement('button');
         b.className = 'mk-slider';
-        b.innerHTML = `<span class="codicon codicon-add" style="font-size:12px"></span> slider <span class="var-name">${esc(name)}</span>`;
+        b.innerHTML = `<span class="codicon codicon-add" style="font-size:12px"></span> slider <span class="var-name">${esc(dispName(name))}</span>`;
         b.onclick = () => {
           this.state.addItem('slider', { name, value: 1 });
         };
