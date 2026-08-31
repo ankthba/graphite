@@ -1,6 +1,6 @@
 // Expression panel: Desmos-style item rows, add menu, color popovers, slider chips.
 import { PALETTE, COLORMAP_NAMES, colormapCSS } from '../colormaps.js';
-import { makeMathField } from './mathinput.js';
+import { makeMathField, makeEquationField, makeMathPreview, previewLatex } from './mathinput.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const debounce = (fn, ms) => {
@@ -27,7 +27,7 @@ const DOMAIN_LABELS = {
 const ADD_MENU = [
   ['head', 'Surfaces'],
   { kind: 'surface', icon: 'z', title: 'Function surface', sub: 'z = f(x, y)' },
-  { kind: 'implicit', icon: 'F', title: 'Implicit surface', sub: 'F(x, y, z) = k  ·  quadrics' },
+  { kind: 'implicit', icon: '=', title: 'Implicit surface', sub: 'x² + y² + z² = 9  ·  quadrics' },
   { kind: 'parametric', icon: 'uv', title: 'Parametric surface', sub: 'x(u,v), y(u,v), z(u,v)' },
   { kind: 'cylindrical', icon: 'rθ', title: 'Cylindrical coordinates', sub: 'z = f(r, θ)' },
   { kind: 'spherical', icon: 'ρ', title: 'Spherical coordinates', sub: 'ρ = f(θ, φ)' },
@@ -54,6 +54,7 @@ export class Panel {
     this.els = els;
     this.cards = new Map();
     this.openAdv = new Set();
+    this.openId = null;
 
     state.on('items-changed', () => this.renderAll());
     state.on('runtime-updated', (item) => this.updateRuntime(item));
@@ -61,12 +62,22 @@ export class Panel {
     state.on('frame-updated', (item, info) => this.syncFrame(item, info));
 
     this.buildAddMenu();
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t.closest && t.closest('input, textarea, math-field, [contenteditable]')) return;
+      e.preventDefault();
+      this.openPalette();
+    });
     document.addEventListener('pointerdown', (e) => {
       for (const pop of document.querySelectorAll('.color-pop')) {
         if (!pop.contains(e.target)) pop.remove();
       }
       for (const menu of document.querySelectorAll('.menu:not([hidden])')) {
-        if (!menu.contains(e.target) && !menu.parentElement.contains(e.target)) {
+        const anchor = menu.classList.contains('quickpick')
+          ? document.getElementById('btn-add')
+          : menu.parentElement;
+        if (!menu.contains(e.target) && !(anchor && anchor.contains(e.target))) {
           menu.setAttribute('hidden', '');
         }
       }
@@ -74,14 +85,22 @@ export class Panel {
     this.renderAll();
   }
 
+  // Command palette (Notion "/" menu): searchable list of block types.
   buildAddMenu() {
     const menu = this.els.addMenu;
     menu.innerHTML = '';
+    const search = document.createElement('input');
+    search.className = 'palette-search';
+    search.placeholder = 'Search for a type…';
+    search.spellcheck = false;
+    menu.appendChild(search);
+    const rows = [];
     for (const entry of ADD_MENU) {
       if (Array.isArray(entry)) {
         const h = document.createElement('div');
         h.className = 'menu-head'; h.textContent = entry[1];
         menu.appendChild(h);
+        rows.push({ el: h, head: true });
         continue;
       }
       const b = document.createElement('button');
@@ -91,18 +110,50 @@ export class Panel {
       b.onclick = () => {
         menu.setAttribute('hidden', '');
         const item = this.state.addItem(entry.kind);
+        this.openId = item.id;
+        this.renderAll();
         requestAnimationFrame(() => {
-          const card = this.cards.get(item.id);
-          card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          card?.querySelector('.expr-input')?.focus();
+          const row = this.cards.get(item.id);
+          row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          row?.querySelector('.nrow-editor .expr-input')?.focus();
         });
       };
       menu.appendChild(b);
+      rows.push({ el: b, head: false, text: `${entry.title} ${entry.sub}`.toLowerCase() });
     }
+    const applyFilter = () => {
+      const q = search.value.trim().toLowerCase();
+      let lastHead = null;
+      for (const r of rows) {
+        if (r.head) { r.el.style.display = q ? 'none' : ''; lastHead = r.el; continue; }
+        const show = !q || r.text.includes(q);
+        r.el.style.display = show ? '' : 'none';
+      }
+    };
+    search.oninput = applyFilter;
+    search.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        const first = rows.find((r) => !r.head && r.el.style.display !== 'none');
+        first?.el.click();
+      } else if (e.key === 'Escape') {
+        menu.setAttribute('hidden', '');
+      }
+    };
+    this._paletteSearch = search;
+    this._paletteFilter = applyFilter;
     this.els.addBtn.onclick = (e) => {
       e.stopPropagation();
-      menu.toggleAttribute('hidden');
+      if (menu.hasAttribute('hidden')) this.openPalette();
+      else menu.setAttribute('hidden', '');
     };
+  }
+
+  openPalette() {
+    const menu = this.els.addMenu;
+    this._paletteSearch.value = '';
+    this._paletteFilter();
+    menu.removeAttribute('hidden');
+    requestAnimationFrame(() => this._paletteSearch.focus());
   }
 
   renderAll() {
@@ -113,60 +164,90 @@ export class Panel {
       const d = document.createElement('div');
       d.className = 'empty-hint';
       d.innerHTML = `<div class="eh-title">Empty graph</div>
-        Use <b>+ Add</b> above to plot a surface, curve, or field — or open the
-        <b>Library</b> for ready-made Calc III scenes.
-        <br><br>Expressions read like math: <code>sin(x)cos(y)</code>, <code>2pi</code>,
-        <code>e^-x</code>, <code>x^2/4 - y^2/9</code>.`;
+        Add a surface, curve, or field below — or open the <b>Library</b> for
+        ready-made Calc III scenes.
+        <br><br>Type math naturally: <code>sin(x)cos(y)</code>, <code>phi</code> → φ,
+        <code>sqrt</code> → √. Press <code>/</code> to add.`;
       root.appendChild(d);
-      return;
     }
     for (const item of this.state.items) {
-      const card = this.buildCard(item);
-      this.cards.set(item.id, card);
-      root.appendChild(card);
+      const row = this.buildCard(item);
+      this.cards.set(item.id, row);
+      root.appendChild(row);
       this.updateRuntime(item);
     }
+    // Notion-style trailing "new block" row
+    const add = document.createElement('button');
+    add.className = 'nrow-add';
+    add.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> New expression <span class="nrow-add-hint">/</span>`;
+    add.onclick = (e) => { e.stopPropagation(); this.openPalette(); };
+    root.appendChild(add);
   }
 
   /* ================= row construction ================= */
 
+  // Compact one-line row; clicking expands it into an editor card below.
   buildCard(item) {
     const row = document.createElement('div');
-    row.className = 'item' + (item.visible ? '' : ' hidden-item');
+    const open = this.openId === item.id;
+    row.className = 'nrow' + (open ? ' open' : '') + (item.visible ? '' : ' hidden-item');
     row.style.setProperty('--item-color', item.color || 'var(--accent)');
     row.dataset.id = item.id;
 
-    const rail = document.createElement('div');
-    rail.className = 'item-rail';
-    const num = document.createElement('span');
-    num.className = 'item-num';
-    num.textContent = this.state.items.indexOf(item) + 1;
-    rail.appendChild(num);
+    const head = document.createElement('div');
+    head.className = 'nrow-head';
+    head.onclick = (e) => {
+      if (e.target.closest('button, input, .color-pop, math-field')) return;
+      this.toggleOpen(item.id);
+    };
+    row.appendChild(head);
+
+    if (item.type !== 'slider') {
+      const tw = document.createElement('span');
+      tw.className = 'twisty' + (open ? ' open' : '');
+      tw.innerHTML = CHEV;
+      head.appendChild(tw);
+    }
+
     const dot = document.createElement('button');
     dot.className = 'swatch-dot';
     dot.title = 'Color';
     dot.style.background = item.cmap ? colormapCSS(item.cmap) : (item.color || '#888');
-    dot.onclick = (e) => { e.stopPropagation(); this.openColorPop(item, rail, dot, row); };
-    rail.appendChild(dot);
-    row.appendChild(rail);
+    dot.onclick = (e) => { e.stopPropagation(); this.openColorPop(item, row, dot, row); };
+    head.appendChild(dot);
 
-    const main = document.createElement('div');
-    main.className = 'item-main';
-    row.appendChild(main);
+    if (item.type === 'slider') this.sliderHead(item, head);
+    else if (open) {
+      const kind = document.createElement('span');
+      kind.className = 'nrow-title';
+      kind.textContent = TYPE_LABEL[item.type === 'surface' ? item.mode : item.type] || item.type;
+      head.appendChild(kind);
+      const sp = document.createElement('span');
+      sp.style.flex = '1';
+      head.appendChild(sp);
+    } else {
+      const prev = this.previewFor(item);
+      head.appendChild(prev);
+      row._preview = prev;
+      const kind = document.createElement('span');
+      kind.className = 'nrow-kind';
+      kind.textContent = TYPE_LABEL[item.type === 'surface' ? item.mode : item.type] || item.type;
+      head.appendChild(kind);
+    }
 
-    const top = document.createElement('div');
-    top.className = 'item-top';
-    const kind = document.createElement('span');
-    kind.className = 'item-kind';
-    kind.textContent = TYPE_LABEL[item.type === 'surface' ? item.mode : item.type] || item.type;
-    top.appendChild(kind);
+    const badge = document.createElement('span');
+    badge.className = 'nrow-err';
+    badge.style.display = 'none';
+    head.appendChild(badge);
+
     const actions = document.createElement('span');
-    actions.className = 'item-actions';
+    actions.className = 'nrow-actions';
     if (item.type !== 'slider') {
       const eye = document.createElement('button');
       eye.className = 'chip-btn'; eye.title = 'Show / hide';
       eye.innerHTML = item.visible ? EYE_ON : EYE_OFF;
-      eye.onclick = () => {
+      eye.onclick = (e) => {
+        e.stopPropagation();
         this.state.patch(item.id, { visible: !item.visible });
         eye.innerHTML = item.visible ? EYE_ON : EYE_OFF;
         row.classList.toggle('hidden-item', !item.visible);
@@ -176,22 +257,90 @@ export class Panel {
     const del = document.createElement('button');
     del.className = 'chip-btn danger'; del.title = 'Delete';
     del.innerHTML = TRASH;
-    del.onclick = () => this.state.removeItem(item.id);
+    del.onclick = (e) => { e.stopPropagation(); this.state.removeItem(item.id); };
     actions.appendChild(del);
-    top.appendChild(actions);
-    main.appendChild(top);
+    head.appendChild(actions);
 
-    const body = main;
-    if (item.type === 'surface') this.bodySurface(item, body);
-    else if (item.type === 'parametric') this.bodyParametric(item, body);
-    else if (item.type === 'curve') this.bodyCurve(item, body);
-    else if (item.type === 'implicit') this.bodyImplicit(item, body);
-    else if (item.type === 'field') this.bodyField(item, body);
-    else if (item.type === 'point') this.bodyPoint(item, body);
-    else if (item.type === 'vector') this.bodyVector(item, body);
-    else if (item.type === 'slider') this.bodySlider(item, body, row);
-
+    if (open) {
+      const editor = document.createElement('div');
+      editor.className = 'nrow-editor';
+      row.appendChild(editor);
+      if (item.type === 'surface') this.bodySurface(item, editor);
+      else if (item.type === 'parametric') this.bodyParametric(item, editor);
+      else if (item.type === 'curve') this.bodyCurve(item, editor);
+      else if (item.type === 'implicit') this.bodyImplicit(item, editor);
+      else if (item.type === 'field') this.bodyField(item, editor);
+      else if (item.type === 'point') this.bodyPoint(item, editor);
+      else if (item.type === 'vector') this.bodyVector(item, editor);
+      else if (item.type === 'slider') this.bodySlider(item, editor, row);
+    }
     return row;
+  }
+
+  toggleOpen(id) {
+    this.openId = this.openId === id ? null : id;
+    this.renderAll();
+  }
+
+  // typeset one-line summary for a collapsed row
+  previewFor(item) {
+    const L = (e) => previewLatex(e) ?? String(e ?? '');
+    let latex = '';
+    if (item.type === 'surface') latex = L(item.expr);
+    else if (item.type === 'implicit') {
+      latex = String(item.expr ?? '').trim() ? `${L(item.expr)} = ${L(item.level ?? '0')}` : '';
+    }
+    else if (item.type === 'curve' || item.type === 'parametric' || item.type === 'vector') {
+      latex = `\\left\\langle ${L(item.ex)},\\, ${L(item.ey)},\\, ${L(item.ez)} \\right\\rangle`;
+    } else if (item.type === 'field') {
+      latex = `\\left\\langle ${L(item.ep)},\\, ${L(item.eq)},\\, ${L(item.er)} \\right\\rangle`;
+    } else if (item.type === 'point') {
+      latex = `\\left( ${L(item.ex)},\\, ${L(item.ey)},\\, ${L(item.ez)} \\right)`;
+    }
+    if (!latex.trim()) {
+      const d = document.createElement('span');
+      d.className = 'nrow-preview nrow-empty';
+      d.textContent = 'Empty';
+      return d;
+    }
+    return makeMathPreview(latex);
+  }
+
+  // compact slider row: draggable without expanding
+  sliderHead(item, head) {
+    const name = document.createElement('span');
+    name.className = 'srow-name';
+    name.textContent = item.name;
+    const eq = document.createElement('span');
+    eq.className = 'slider-eq'; eq.textContent = '=';
+    const val = document.createElement('input');
+    val.className = 'slider-val';
+    val.value = fmtNum(item.value);
+    val.onclick = (e) => e.stopPropagation();
+    val.onchange = () => {
+      const v = parseFloat(val.value);
+      if (Number.isFinite(v)) { this.state.setSliderValue(item.id, v, { fromUI: true }); track.value = v; }
+      val.value = fmtNum(this.state.get(item.id).value);
+    };
+    const track = document.createElement('input');
+    track.type = 'range'; track.className = 'slider-track';
+    track.min = item.min; track.max = item.max; track.step = item.step;
+    track.value = item.value;
+    track.onclick = (e) => e.stopPropagation();
+    track.oninput = () => {
+      this.state.setSliderValue(item.id, +track.value, { fromUI: true });
+      val.value = fmtNum(+track.value);
+    };
+    const play = document.createElement('button');
+    play.className = 'play-btn';
+    play.innerHTML = item.playing ? PAUSE : PLAY;
+    play.title = 'Animate';
+    play.onclick = (e) => {
+      e.stopPropagation();
+      this.state.patch(item.id, { playing: !item.playing }, { geometry: false });
+      play.innerHTML = item.playing ? PAUSE : PLAY;
+    };
+    head.append(name, eq, val, track, play);
   }
 
   // Rendered math field (MathLive): type naturally — "phi" becomes φ, "sqrt"
@@ -495,26 +644,32 @@ export class Panel {
     });
   }
 
+  // Implicit surfaces read as a whole equation, Desmos-style:
+  // "x² + y² + z² = 9" in a single field (no '=' means "= 0").
   bodyImplicit(item, body) {
-    this.exprRow(item, 'expr', 'F(x,y,z) =', body);
     const row = document.createElement('div');
     row.className = 'expr-row';
-    row.innerHTML = '<span class="expr-label">level k =</span>';
-    const applyLevel = debounce((expr) => {
-      mfl.classList.toggle('err', !Number.isFinite(this.state.evalConst(expr, NaN)));
-      this.state.patch(item.id, { level: expr });
-    }, 250);
-    const mfl = makeMathField(item.level, {
-      onExpr: applyLevel,
-      onBadLatex: () => mfl.classList.add('err'),
+    const err = document.createElement('div');
+    err.className = 'err-msg'; err.dataset.errFor = 'expr'; err.style.display = 'none';
+    const apply = debounce((L, R) => this.state.patch(item.id, { expr: L, level: R }), 220);
+    const mf = makeEquationField(item.expr, item.level, {
+      placeholder: 'x^2 + y^2 + z^2 = 9',
+      onEquation: (L, R) => {
+        err.style.display = 'none';
+        mf.classList.remove('err');
+        apply(L, R);
+      },
+      onBadLatex: (msg) => {
+        err.textContent = msg;
+        err.style.display = '';
+        mf.classList.add('err');
+      },
     });
-    row.appendChild(mfl);
+    mf.dataset.prop = 'expr';
+    row.appendChild(mf);
     body.appendChild(row);
+    body.appendChild(err);
     this.chipsRow(body);
-    const note = document.createElement('div');
-    note.className = 'note';
-    note.textContent = 'Plots the level surface F = k over the graph window.';
-    body.appendChild(note);
     this.advSection(item, body, (sec) => {
       this.rangeRow(sec, 'Detail', item.res, 20, 90, 2, (v) => `${v}³`, (v) => this.state.patch(item.id, { res: v }));
       this.rangeRow(sec, 'Opacity', item.opacity, 0.1, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => this.state.patch(item.id, { opacity: v }));
@@ -572,53 +727,28 @@ export class Panel {
     body.appendChild(wrap);
   }
 
+  // Slider editor: the interactive track lives in the compact head; the
+  // editor holds the definition (name, range, animation behavior).
   bodySlider(item, body, row) {
-    const top = document.createElement('div');
-    top.className = 'slider-top';
+    const rowName = document.createElement('div');
+    rowName.className = 'opt-row';
+    rowName.innerHTML = '<label>name</label>';
     const name = document.createElement('input');
-    name.className = 'slider-name';
+    name.className = 'mini-input';
+    name.style.width = '64px';
+    name.style.fontStyle = 'italic';
     name.value = item.name;
-    name.title = 'Variable name';
     name.onchange = () => {
       const v = name.value.trim();
       // 'e' is Euler's constant to the parser — a slider named e would be dead
       if (/^[a-z](\d+)?$/i.test(v) && v !== 'e' && !this.state.sliderItem(v)) {
         this.state.patch(item.id, { name: v }, { geometry: false });
         this.state.rebuildAll();
+        row.querySelector('.srow-name').textContent = v;
       } else name.value = item.name;
     };
-    const eq = document.createElement('span');
-    eq.className = 'slider-eq'; eq.textContent = '=';
-    const val = document.createElement('input');
-    val.className = 'slider-val';
-    val.value = fmtNum(item.value);
-    val.onchange = () => {
-      const v = parseFloat(val.value);
-      if (Number.isFinite(v)) { this.state.setSliderValue(item.id, v, { fromUI: true }); track.value = v; }
-      val.value = fmtNum(this.state.get(item.id).value);
-    };
-    const spacer = document.createElement('span');
-    spacer.style.flex = '1';
-    const play = document.createElement('button');
-    play.className = 'play-btn';
-    play.innerHTML = item.playing ? PAUSE : PLAY;
-    play.title = 'Animate';
-    play.onclick = () => {
-      this.state.patch(item.id, { playing: !item.playing }, { geometry: false });
-      play.innerHTML = item.playing ? PAUSE : PLAY;
-    };
-    top.append(name, eq, val, spacer, play);
-    body.appendChild(top);
-
-    const track = document.createElement('input');
-    track.type = 'range'; track.className = 'slider-track';
-    track.min = item.min; track.max = item.max; track.step = item.step;
-    track.value = item.value;
-    track.oninput = () => {
-      this.state.setSliderValue(item.id, +track.value, { fromUI: true });
-      val.value = fmtNum(+track.value);
-    };
-    body.appendChild(track);
+    rowName.appendChild(name);
+    body.appendChild(rowName);
 
     const rr = document.createElement('div');
     rr.className = 'slider-range-row';
@@ -631,7 +761,8 @@ export class Panel {
         if (Number.isFinite(v)) {
           this.state.patch(item.id, { [prop]: v }, { geometry: false });
           const it = this.state.get(item.id);
-          track.min = it.min; track.max = it.max; track.step = it.step;
+          const track = row.querySelector('.slider-track');
+          if (track) { track.min = it.min; track.max = it.max; track.step = it.step; }
         } else inp.value = item[prop];
       };
       rr.appendChild(sp); rr.appendChild(inp);
@@ -639,28 +770,25 @@ export class Panel {
     mk('min', 'min'); mk('max', 'max'); mk('step', 'step');
     body.appendChild(rr);
 
-    this.advSection(item, body, (sec) => {
-      this.rangeRow(sec, 'Speed', item.speed, 0.1, 4, 0.1, (v) => `${v.toFixed(1)}×`, (v) => this.state.patch(item.id, { speed: v }, { geometry: false }));
-      const segRow = document.createElement('div');
-      segRow.className = 'opt-row';
-      segRow.innerHTML = '<label>Repeat</label>';
-      const seg = document.createElement('div');
-      seg.className = 'seg';
-      seg.style.borderBottom = 'none';
-      for (const [mode, lab] of [['pingpong', 'back & forth'], ['loop', 'loop']]) {
-        const b = document.createElement('button');
-        b.textContent = lab;
-        b.classList.toggle('sel', item.loop === mode);
-        b.onclick = () => {
-          this.state.patch(item.id, { loop: mode }, { geometry: false });
-          seg.querySelectorAll('button').forEach((x) => x.classList.remove('sel'));
-          b.classList.add('sel');
-        };
-        seg.appendChild(b);
-      }
-      segRow.appendChild(seg);
-      sec.appendChild(segRow);
-    });
+    this.rangeRow(body, 'Speed', item.speed, 0.1, 4, 0.1, (v) => `${v.toFixed(1)}×`, (v) => this.state.patch(item.id, { speed: v }, { geometry: false }));
+    const segRow = document.createElement('div');
+    segRow.className = 'opt-row';
+    segRow.innerHTML = '<label>Repeat</label>';
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    for (const [mode, lab] of [['pingpong', 'back & forth'], ['loop', 'loop']]) {
+      const b = document.createElement('button');
+      b.textContent = lab;
+      b.classList.toggle('sel', item.loop === mode);
+      b.onclick = () => {
+        this.state.patch(item.id, { loop: mode }, { geometry: false });
+        seg.querySelectorAll('button').forEach((x) => x.classList.remove('sel'));
+        b.classList.add('sel');
+      };
+      seg.appendChild(b);
+    }
+    segRow.appendChild(seg);
+    body.appendChild(segRow);
   }
 
   /* ================= live updates ================= */
@@ -680,6 +808,22 @@ export class Panel {
     const card = this.cards.get(item.id);
     if (!card) return;
     const errors = item.runtime?.errors || {};
+    const hasIssue = Object.keys(errors).length > 0 || (item.runtime?.unknown || []).length > 0;
+
+    // collapsed rows: red badge instead of inline messages, live math preview
+    const badge = card.querySelector('.nrow-err');
+    if (badge) {
+      const open = this.openId === item.id;
+      badge.style.display = (!open && hasIssue) ? '' : 'none';
+      badge.title = Object.values(errors)[0]
+        || ((item.runtime?.unknown || []).length ? `Unknown: ${item.runtime.unknown.join(', ')}` : '');
+    }
+    if (card._preview && this.openId !== item.id) {
+      const fresh = this.previewFor(item);
+      card._preview.replaceWith(fresh);
+      card._preview = fresh;
+    }
+
     for (const errDiv of card.querySelectorAll('[data-err-for]')) {
       const prop = errDiv.dataset.errFor;
       const msg = errors[prop];
@@ -688,12 +832,13 @@ export class Panel {
       const inp = card.querySelector(`[data-prop="${prop}"]`);
       if (inp) inp.classList.toggle('err', !!msg);
     }
-    if (errors._build) {
+    const editor = card.querySelector('.nrow-editor');
+    if (errors._build && editor) {
       let d = card.querySelector('[data-err-build]');
       if (!d) {
         d = document.createElement('div');
         d.className = 'err-msg'; d.dataset.errBuild = '1';
-        card.querySelector('.item-main').appendChild(d);
+        editor.appendChild(d);
       }
       d.textContent = `Could not plot: ${errors._build}`;
     } else card.querySelector('[data-err-build]')?.remove();

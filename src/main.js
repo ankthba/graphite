@@ -76,38 +76,60 @@ if (loaded && state.items.length) {
   loadExample(state, DEFAULT_EXAMPLE);
 }
 
-/* ---------- examples menu ---------- */
+/* ---------- sidebar views: Expressions / Library ---------- */
+function showView(name) {
+  $('expr-view').hidden = name !== 'expr';
+  $('library-view').hidden = name !== 'library';
+  $('act-expr').classList.toggle('active', name === 'expr');
+  $('btn-examples').classList.toggle('active', name === 'library');
+}
+$('act-expr').onclick = () => showView('expr');
+$('btn-examples').onclick = () => {
+  showView($('library-view').hidden ? 'library' : 'expr');
+};
+
+/* ---------- library view ---------- */
 {
-  const menu = $('examples-menu');
+  const list = $('library-list');
+  const clearB = document.createElement('button');
+  clearB.className = 'lib-item';
+  clearB.innerHTML = `<span class="lib-name">Clear graph</span><span class="lib-sub">remove everything</span>`;
+  clearB.onclick = () => { inspector.clear(); state.clearAll(); showView('expr'); };
+  list.appendChild(clearB);
   for (const ex of EXAMPLES) {
     if (ex.head) {
       const h = document.createElement('div');
-      h.className = 'menu-head';
+      h.className = 'lib-head';
       h.textContent = ex.head;
-      menu.appendChild(h);
+      list.appendChild(h);
       continue;
     }
     const b = document.createElement('button');
-    b.className = 'menu-item';
-    b.innerHTML = `<span class="mi-text"><span class="mi-title">${ex.name}</span><span class="mi-sub">${ex.sub}</span></span>`;
+    b.className = 'lib-item';
+    b.innerHTML = `<span class="lib-name">${ex.name}</span><span class="lib-sub">${ex.sub}</span>`;
     b.onclick = () => {
-      menu.setAttribute('hidden', '');
       inspector.clear();
       loadExample(state, ex);
       viewport.resetView();
+      showView('expr');
     };
-    menu.appendChild(b);
+    list.appendChild(b);
   }
-  const sep = document.createElement('div');
-  sep.className = 'menu-sep';
-  menu.appendChild(sep);
-  const clearB = document.createElement('button');
-  clearB.className = 'menu-item';
-  clearB.innerHTML = `<span class="mi-text"><span class="mi-title">Clear graph</span><span class="mi-sub">remove everything</span></span>`;
-  clearB.onclick = () => { menu.setAttribute('hidden', ''); inspector.clear(); state.clearAll(); };
-  menu.appendChild(clearB);
-  $('btn-examples').onclick = (e) => { e.stopPropagation(); menu.toggleAttribute('hidden'); };
 }
+
+/* ---------- status bar ---------- */
+function updateStatus() {
+  const n = state.items.length;
+  const plots = state.items.filter((i) => i.type !== 'slider').length;
+  const sliders = n - plots;
+  $('sb-count').textContent =
+    `${plots} plot${plots === 1 ? '' : 's'}${sliders ? ` · ${sliders} slider${sliders === 1 ? '' : 's'}` : ''}`;
+  const b = state.settings.bounds;
+  $('sb-bounds').textContent =
+    `x ${b.xmin}..${b.xmax}  y ${b.ymin}..${b.ymax}  z ${b.zmin}..${b.zmax}`;
+}
+state.on('items-changed', updateStatus);
+updateStatus();
 
 /* ---------- top bar ---------- */
 $('btn-theme').onclick = () => {
@@ -198,6 +220,7 @@ $('btn-shot').onclick = async () => {
     state.settings.anaglyph = !!viewport.anaglyph;
     state.rebuildAll();
     state.save();
+    updateStatus();
     pop.hidden = true;
   }
   $('btn-settings').onclick = (e) => {

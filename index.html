@@ -11,53 +11,54 @@
 </head>
 <body>
   <div id="app">
-    <header id="topbar">
-      <div class="brand">
-        <svg class="brand-glyph" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 13 L12 3.5" stroke="currentColor" stroke-width="2.4"/>
-          <path d="M12 13 L4 19" stroke="currentColor" stroke-width="2.4" opacity=".62"/>
-          <path d="M12 13 L20.5 17.5" stroke="currentColor" stroke-width="2.4" opacity=".38"/>
-        </svg>
-        <span class="brand-name">Graphite</span>
-      </div>
-      <div class="topbar-actions">
-        <div class="examples-wrap">
-          <button class="btn" id="btn-examples" title="Library of Calc III examples">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h13.5v13.5H6a2 2 0 0 0-2 2zm0 0A2.5 2.5 0 0 0 6.5 22H19.5v-4.5"/></svg>
-            Library
-            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <div class="menu" id="examples-menu" hidden></div>
-        </div>
-        <button class="btn icon-btn" id="btn-settings" title="Graph settings (bounds, axes)">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.4 4.6a1.7 1.7 0 0 1 3.2 0l.2.7a1.7 1.7 0 0 0 2.5 1l.6-.3a1.7 1.7 0 0 1 2.3 2.3l-.3.6a1.7 1.7 0 0 0 1 2.5l.7.2a1.7 1.7 0 0 1 0 3.2l-.7.2a1.7 1.7 0 0 0-1 2.5l.3.6a1.7 1.7 0 0 1-2.3 2.3l-.6-.3a1.7 1.7 0 0 0-2.5 1l-.2.7a1.7 1.7 0 0 1-3.2 0l-.2-.7a1.7 1.7 0 0 0-2.5-1l-.6.3a1.7 1.7 0 0 1-2.3-2.3l.3-.6a1.7 1.7 0 0 0-1-2.5l-.7-.2a1.7 1.7 0 0 1 0-3.2l.7-.2a1.7 1.7 0 0 0 1-2.5l-.3-.6a1.7 1.7 0 0 1 2.3-2.3l.6.3a1.7 1.7 0 0 0 2.5-1z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
-        <button class="btn icon-btn" id="btn-shot" title="Save a PNG of the graph">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8c0-1.1.9-2 2-2h1.5l1.2-1.8c.2-.3.5-.5.9-.5h4.8c.4 0 .7.2.9.5L16.5 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.4"/></svg>
-        </button>
-        <button class="btn icon-btn" id="btn-theme" title="Toggle light / dark theme">
-          <svg class="ic-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 13.5A8.5 8.5 0 0 1 10.5 4 7.5 7.5 0 1 0 20 13.5z"/></svg>
-          <svg class="ic-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
-        </button>
-      </div>
-    </header>
+    <nav id="activitybar">
+      <button class="act-btn active" id="act-expr" title="Expressions">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>
+      </button>
+      <button class="act-btn" id="btn-examples" title="Library — Calc III scenes">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h13.5v13.5H6a2 2 0 0 0-2 2zm0 0A2.5 2.5 0 0 0 6.5 22H19.5v-4.5"/></svg>
+      </button>
+      <div class="act-spacer"></div>
+      <button class="act-btn" id="btn-shot" title="Save a PNG of the graph">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8c0-1.1.9-2 2-2h1.5l1.2-1.8c.2-.3.5-.5.9-.5h4.8c.4 0 .7.2.9.5L16.5 6H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.4"/></svg>
+      </button>
+      <button class="act-btn" id="btn-theme" title="Toggle light / dark theme">
+        <svg class="ic-moon" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 13.5A8.5 8.5 0 0 1 10.5 4 7.5 7.5 0 1 0 20 13.5z"/></svg>
+        <svg class="ic-sun" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+      </button>
+      <button class="act-btn" id="btn-settings" title="Graph window & view settings">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M10.4 4.6a1.7 1.7 0 0 1 3.2 0l.2.7a1.7 1.7 0 0 0 2.5 1l.6-.3a1.7 1.7 0 0 1 2.3 2.3l-.3.6a1.7 1.7 0 0 0 1 2.5l.7.2a1.7 1.7 0 0 1 0 3.2l-.7.2a1.7 1.7 0 0 0-1 2.5l.3.6a1.7 1.7 0 0 1-2.3 2.3l-.6-.3a1.7 1.7 0 0 0-2.5 1l-.2.7a1.7 1.7 0 0 1-3.2 0l-.2-.7a1.7 1.7 0 0 0-2.5-1l-.6.3a1.7 1.7 0 0 1-2.3-2.3l.3-.6a1.7 1.7 0 0 0-1-2.5l-.7-.2a1.7 1.7 0 0 1 0-3.2l.7-.2a1.7 1.7 0 0 0 1-2.5l-.3-.6a1.7 1.7 0 0 1 2.3-2.3l.6.3a1.7 1.7 0 0 0 2.5-1z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </nav>
 
     <aside id="panel">
-      <div id="panel-tools">
-        <div class="add-wrap">
-          <button class="add-btn" id="btn-add" title="Add an expression to the graph">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            Add
-            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-          </button>
-          <div class="menu" id="add-menu" hidden></div>
+      <div id="expr-view" class="side-view">
+        <div class="side-head">
+          <span class="side-title">Expressions</span>
+          <span class="side-actions">
+            <button class="chip-btn" id="btn-add" title="Add expression  ( / )">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </span>
         </div>
-        <span class="tools-hint">Expressions</span>
+        <div id="items"></div>
       </div>
-      <div id="items"></div>
+      <div id="library-view" class="side-view" hidden>
+        <div class="side-head">
+          <span class="side-title">Library</span>
+        </div>
+        <div id="library-list"></div>
+      </div>
     </aside>
 
     <main id="stage">
+      <div id="tabstrip">
+        <div class="tab active">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13 L12 3.5" stroke="currentColor" stroke-width="2.4"/><path d="M12 13 L4 19" stroke="currentColor" stroke-width="2.4" opacity=".62"/><path d="M12 13 L20.5 17.5" stroke="currentColor" stroke-width="2.4" opacity=".38"/></svg>
+          Graph 3D
+        </div>
+        <span class="tab-title">Graphite</span>
+      </div>
       <div id="viewport"></div>
       <div id="hud-tr">
         <button class="hud-btn" id="btn-inspect" title="Inspect: click a surface for tangent plane, gradient & partial derivatives">
@@ -72,7 +73,16 @@
       <div id="inspect-card" hidden></div>
       <div id="settings-pop" hidden></div>
       <div id="toast" hidden></div>
+      <div id="add-menu" class="menu quickpick" hidden></div>
     </main>
+
+    <footer id="statusbar">
+      <span class="sb-item" id="sb-status">Ready</span>
+      <span class="sb-item" id="sb-count"></span>
+      <span class="sb-spacer"></span>
+      <span class="sb-item" id="sb-bounds"></span>
+      <span class="sb-item">aniketh.net/graphite</span>
+    </footer>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

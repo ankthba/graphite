@@ -55,14 +55,14 @@ export function buildAxes(bounds, opts) {
   const disposables = [];
   const span = Math.max(xmax - xmin, ymax - ymin, zmax - zmin);
 
-  const cWall = dark ? 0x1f1f1f : 0xf7f7f5;
-  const cGridMajor = dark ? 0x383838 : 0xd6d4cf;
-  const cGridMinor = dark ? 0x2a2a2a : 0xe9e8e4;
-  const cBox = dark ? 0x424242 : 0xc4c2bc;
+  const cWall = dark ? 0x242424 : 0xf5f5f5;
+  const cGridMajor = dark ? 0x3c3c3c : 0xd9d9d9;
+  const cGridMinor = dark ? 0x2e2e2e : 0xeaeaea;
+  const cBox = dark ? 0x4d4d4d : 0xc6c6c6;
   const cAxis = { x: 0xd0453a, y: 0x1e8e57, z: 0x2f6bdb };
-  const cLabel = dark ? '#9b9b9b' : '#8f8d87';
-  const cAxisLabel = dark ? '#d9d9d9' : '#37352f';
-  const halo = dark ? '#191919' : '#fbfbfa';
+  const cLabel = dark ? '#9d9d9d' : '#8e8e8e';
+  const cAxisLabel = dark ? '#cccccc' : '#3b3b3b';
+  const halo = dark ? '#1e1e1e' : '#fafafa';
 
   const track = (o) => { disposables.push(o); return o; };
 
