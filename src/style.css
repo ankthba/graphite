@@ -227,10 +227,10 @@ svg { display: block; }
 .chip-btn.danger:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
 /* expressions — contained fields, legible size */
-.expr-row { display: flex; align-items: center; gap: 8px; }
+.expr-row { display: flex; align-items: center; gap: 9px; }
 .expr-label {
-  font-family: var(--font-math); font-size: 12.5px; color: var(--text-dim);
-  flex: none; min-width: 52px; text-align: right; font-style: italic;
+  font-family: var(--font-math); font-size: 13px; color: var(--text-dim);
+  flex: none; min-width: 54px; text-align: right; font-style: italic;
 }
 .expr-input {
   flex: 1; min-width: 0;
@@ -248,6 +248,53 @@ svg { display: block; }
 .expr-input.err { border-color: var(--danger); }
 .expr-input.err:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent); }
 .expr-input::placeholder { color: var(--text-faint); }
+
+/* rendered math fields (MathLive) — match the contained-field look */
+math-field.expr-input {
+  display: block;
+  font-size: 17px;
+  padding: 3px 8px;
+  color: var(--text);
+  --caret-color: var(--accent);
+  --selection-background-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  --selection-color: var(--text);
+  --contains-highlight-background-color: var(--accent-weak);
+  --placeholder-color: var(--text-faint);
+  --smart-fence-color: var(--text-dim);
+  --text-font-family: var(--font-ui);
+}
+math-field.expr-input:focus-within {
+  background: var(--panel);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: none;
+}
+math-field.expr-input.err { border-color: var(--danger); }
+math-field.expr-input.err:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent); }
+math-field::part(virtual-keyboard-toggle) { color: var(--text-faint); border-radius: 6px; }
+math-field::part(virtual-keyboard-toggle):hover { color: var(--accent); background: var(--hover); }
+math-field::part(menu-toggle) { display: none; }
+
+/* MathLive virtual keyboard theming */
+body {
+  --keyboard-background: color-mix(in srgb, var(--panel) 96%, var(--bg));
+  --keyboard-border: var(--border);
+  --keyboard-text: var(--text);
+  --keyboard-text-active: var(--accent);
+  --keycap-background: var(--field);
+  --keycap-background-hover: var(--hover);
+  --keycap-background-active: var(--active);
+  --keycap-text: var(--text);
+  --keycap-secondary-text: var(--text-dim);
+  --keycap-border: var(--border);
+  --keycap-border-bottom: var(--border-strong);
+  --keyboard-toolbar-text: var(--text-dim);
+  --keyboard-toolbar-text-active: var(--accent);
+  --keycap-primary-background: var(--accent);
+  --keycap-primary-text: #fff;
+  --keyboard-zindex: 200;
+}
+
 .err-msg { font-size: 12px; color: var(--danger); line-height: 1.5; }
 .note { font-size: 12px; color: var(--text-faint); line-height: 1.55; }
 

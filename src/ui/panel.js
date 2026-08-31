@@ -1,5 +1,6 @@
 // Expression panel: Desmos-style item rows, add menu, color popovers, slider chips.
 import { PALETTE, COLORMAP_NAMES, colormapCSS } from '../colormaps.js';
+import { makeMathField } from './mathinput.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const debounce = (fn, ms) => {
@@ -193,24 +194,34 @@ export class Panel {
     return row;
   }
 
+  // Rendered math field (MathLive): type naturally — "phi" becomes φ, "sqrt"
+  // a radical, "/" a fraction — or use the in-field symbol keypad.
   exprRow(item, prop, label, body, placeholder = '') {
     const row = document.createElement('div');
     row.className = 'expr-row';
     const lab = document.createElement('span');
     lab.className = 'expr-label'; lab.innerHTML = label;
-    const inp = document.createElement('input');
-    inp.className = 'expr-input';
-    inp.value = item[prop] ?? '';
-    inp.placeholder = placeholder;
-    inp.spellcheck = false; inp.autocapitalize = 'off'; inp.autocomplete = 'off';
-    inp.dataset.prop = prop;
-    inp.oninput = debounce(() => this.state.patch(item.id, { [prop]: inp.value }), 170);
-    row.appendChild(lab); row.appendChild(inp);
-    body.appendChild(row);
     const err = document.createElement('div');
     err.className = 'err-msg'; err.dataset.errFor = prop; err.style.display = 'none';
+    const apply = debounce((expr) => this.state.patch(item.id, { [prop]: expr }), 200);
+    const mf = makeMathField(item[prop] ?? '', {
+      placeholder,
+      onExpr: (expr) => {
+        err.style.display = 'none';
+        mf.classList.remove('err');
+        apply(expr);
+      },
+      onBadLatex: (msg) => {
+        err.textContent = msg;
+        err.style.display = '';
+        mf.classList.add('err');
+      },
+    });
+    mf.dataset.prop = prop;
+    row.appendChild(lab); row.appendChild(mf);
+    body.appendChild(row);
     body.appendChild(err);
-    return inp;
+    return mf;
   }
 
   chipsRow(body) {
@@ -345,17 +356,17 @@ export class Panel {
     const row = document.createElement('div');
     row.className = 'expr-row';
     row.innerHTML = `<span class="expr-label">${labels[item.mode] || 'g'} =</span>`;
-    const inp = document.createElement('input');
-    inp.className = 'expr-input';
-    inp.value = item.restrict || '';
-    inp.placeholder = item.mode === 'cartesian' ? 'x^2 + y^2 - 16' : 'leave empty for none';
-    inp.spellcheck = false;
-    inp.dataset.prop = 'restrict';
-    inp.oninput = debounce(() => this.state.patch(item.id, { restrict: inp.value }), 250);
-    row.appendChild(inp);
-    sec.appendChild(row);
     const err = document.createElement('div');
     err.className = 'err-msg'; err.dataset.errFor = 'restrict'; err.style.display = 'none';
+    const applyRestrict = debounce((expr) => this.state.patch(item.id, { restrict: expr }), 250);
+    const mfr = makeMathField(item.restrict || '', {
+      placeholder: item.mode === 'cartesian' ? 'x^2 + y^2 - 16' : 'empty for none',
+      onExpr: (expr) => { err.style.display = 'none'; mfr.classList.remove('err'); applyRestrict(expr); },
+      onBadLatex: (msg) => { err.textContent = msg; err.style.display = ''; mfr.classList.add('err'); },
+    });
+    mfr.dataset.prop = 'restrict';
+    row.appendChild(mfr);
+    sec.appendChild(row);
     sec.appendChild(err);
   }
 
@@ -489,13 +500,15 @@ export class Panel {
     const row = document.createElement('div');
     row.className = 'expr-row';
     row.innerHTML = '<span class="expr-label">level k =</span>';
-    const inp = document.createElement('input');
-    inp.className = 'expr-input'; inp.value = item.level; inp.spellcheck = false;
-    inp.oninput = debounce(() => {
-      inp.classList.toggle('err', !Number.isFinite(this.state.evalConst(inp.value, NaN)));
-      this.state.patch(item.id, { level: inp.value });
+    const applyLevel = debounce((expr) => {
+      mfl.classList.toggle('err', !Number.isFinite(this.state.evalConst(expr, NaN)));
+      this.state.patch(item.id, { level: expr });
     }, 250);
-    row.appendChild(inp);
+    const mfl = makeMathField(item.level, {
+      onExpr: applyLevel,
+      onBadLatex: () => mfl.classList.add('err'),
+    });
+    row.appendChild(mfl);
     body.appendChild(row);
     this.chipsRow(body);
     const note = document.createElement('div');

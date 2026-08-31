@@ -16,7 +16,7 @@ export class Viewport {
     this.renderer.toneMappingExposure = 1.06;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
