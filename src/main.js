@@ -1,4 +1,5 @@
 import './style.css';
+import '@vscode/codicons/dist/codicon.css';
 import { AppState } from './state.js';
 import { Viewport } from './engine/viewport.js';
 import { PlotManager } from './plots/manager.js';
@@ -31,22 +32,63 @@ function decodeShare(s) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-/* ---------- load: share link > saved scene > intro example ---------- */
+/* ---------- scene tabs (workspaces) ---------- */
+const SCENES_KEY = 'graphite3d.scenes';
+let sceneSeq = 1;
+const newSceneId = () => `sc${sceneSeq++}.${Math.random().toString(36).slice(2, 7)}`;
+
+function loadScenesStore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SCENES_KEY));
+    if (s && s.scenes && Array.isArray(s.order) && s.order.length) {
+      sceneSeq = s.order.length + 1;
+      return s;
+    }
+  } catch { /* fresh */ }
+  // migrate the old single-scene key
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem('graphite3d.v2')); } catch { /* none */ }
+  const id = newSceneId();
+  return { order: [id], active: id, scenes: { [id]: { name: 'Scene 1', data } } };
+}
+const scenesStore = loadScenesStore();
+function saveScenesStore() {
+  try { localStorage.setItem(SCENES_KEY, JSON.stringify(scenesStore)); } catch { /* full */ }
+}
+state.persistFn = (json) => {
+  const sc = scenesStore.scenes[scenesStore.active];
+  if (sc) { sc.data = json; saveScenesStore(); }
+};
+
+const blankScene = (dark) => ({
+  v: 1,
+  settings: {
+    bounds: { xmin: -5, xmax: 5, ymin: -5, ymax: 5, zmin: -5, zmax: 5 },
+    dark, grid: true, labels: true, box: true, ortho: false, anaglyph: false,
+  },
+  items: [],
+});
+
+/* ---------- load: share link (as its own tab) > active scene ---------- */
 let loaded = false;
 const shareMatch = /[#&]g=([A-Za-z0-9_-]+)/.exec(location.hash);
 if (shareMatch) {
   try {
-    loaded = state.loadJSON(decodeShare(shareMatch[1]));
-    // viewing someone's link must not clobber this user's saved scene;
-    // the first edit they make adopts it (state.touch re-enables saving)
-    if (loaded) state.persist = false;
+    const data = decodeShare(shareMatch[1]);
+    if (state.loadJSON(data)) {
+      // a shared graph opens in its own tab, so nothing of yours is overwritten
+      const id = newSceneId();
+      scenesStore.order.push(id);
+      scenesStore.scenes[id] = { name: 'Shared scene', data };
+      scenesStore.active = id;
+      saveScenesStore();
+      loaded = true;
+    }
   } catch { /* bad link */ }
 }
 if (!loaded) {
-  try {
-    const raw = localStorage.getItem('graphite3d.v2');
-    if (raw) loaded = state.loadJSON(JSON.parse(raw));
-  } catch { /* fresh start */ }
+  const d = scenesStore.scenes[scenesStore.active]?.data;
+  if (d) loaded = state.loadJSON(d);
 }
 applyTheme();
 
@@ -130,6 +172,100 @@ function updateStatus() {
 }
 state.on('items-changed', updateStatus);
 updateStatus();
+
+/* ---------- scene tab strip ---------- */
+function applySceneToApp(data, keepDark) {
+  inspector.clear();
+  state.loadJSON(data);
+  if (keepDark !== undefined) state.settings.dark = keepDark;
+  applyTheme();
+  viewport.setTheme(state.settings.dark);
+  viewport.axisOptions = {
+    grid: state.settings.grid, labels: state.settings.labels, box: state.settings.box,
+  };
+  viewport.setBounds(state.settings.bounds);
+  viewport.setProjection(state.settings.ortho ? 'orthographic' : 'perspective');
+  viewport.setAnaglyph(!!state.settings.anaglyph);
+  state.settings.ortho = !!viewport.camera.isOrthographicCamera;
+  state.settings.anaglyph = !!viewport.anaglyph;
+  panel.renderAll();
+  state.rebuildAll();
+  updateStatus();
+  viewport.resetView();
+}
+
+function switchScene(id) {
+  if (id === scenesStore.active || !scenesStore.scenes[id]) return;
+  scenesStore.scenes[scenesStore.active].data = state.toJSON();
+  scenesStore.active = id;
+  saveScenesStore();
+  const dark = state.settings.dark;
+  applySceneToApp(scenesStore.scenes[id].data ?? blankScene(dark), dark);
+  renderTabs();
+}
+
+function addScene() {
+  scenesStore.scenes[scenesStore.active].data = state.toJSON();
+  const id = newSceneId();
+  let n = scenesStore.order.length + 1;
+  const names = new Set(Object.values(scenesStore.scenes).map((s) => s.name));
+  while (names.has(`Scene ${n}`)) n++;
+  scenesStore.scenes[id] = { name: `Scene ${n}`, data: blankScene(state.settings.dark) };
+  scenesStore.order.push(id);
+  scenesStore.active = id;
+  saveScenesStore();
+  applySceneToApp(scenesStore.scenes[id].data, state.settings.dark);
+  renderTabs();
+}
+
+function closeScene(id) {
+  const i = scenesStore.order.indexOf(id);
+  if (i < 0) return;
+  scenesStore.order.splice(i, 1);
+  delete scenesStore.scenes[id];
+  if (!scenesStore.order.length) {
+    const nid = newSceneId();
+    scenesStore.order = [nid];
+    scenesStore.scenes[nid] = { name: 'Scene 1', data: blankScene(state.settings.dark) };
+  }
+  if (scenesStore.active === id) {
+    scenesStore.active = scenesStore.order[Math.max(0, i - 1)];
+    applySceneToApp(
+      scenesStore.scenes[scenesStore.active].data ?? blankScene(state.settings.dark),
+      state.settings.dark);
+  }
+  saveScenesStore();
+  renderTabs();
+}
+
+function renderTabs() {
+  const tabs = $('tabs');
+  tabs.innerHTML = '';
+  for (const id of scenesStore.order) {
+    const sc = scenesStore.scenes[id];
+    const t = document.createElement('div');
+    t.className = 'tab' + (id === scenesStore.active ? ' active' : '');
+    t.innerHTML = `<span class="codicon codicon-graph"></span><span class="tab-name"></span>`;
+    t.querySelector('.tab-name').textContent = sc.name;
+    t.title = `${sc.name} — double-click to rename`;
+    t.onclick = () => switchScene(id);
+    t.ondblclick = () => {
+      const name = window.prompt('Rename scene', sc.name);
+      if (name && name.trim()) { sc.name = name.trim().slice(0, 40); saveScenesStore(); renderTabs(); }
+    };
+    if (scenesStore.order.length > 1) {
+      const x = document.createElement('button');
+      x.className = 'tab-close';
+      x.title = 'Close scene';
+      x.innerHTML = '<span class="codicon codicon-close"></span>';
+      x.onclick = (e) => { e.stopPropagation(); closeScene(id); };
+      t.appendChild(x);
+    }
+    tabs.appendChild(t);
+  }
+}
+$('tab-add').onclick = addScene;
+renderTabs();
 
 /* ---------- top bar ---------- */
 $('btn-theme').onclick = () => {

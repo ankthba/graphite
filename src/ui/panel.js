@@ -40,12 +40,12 @@ const ADD_MENU = [
   { kind: 'slider', icon: 'a', title: 'Slider', sub: 'animatable parameter' },
 ];
 
-const EYE_ON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
-const EYE_OFF = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 5.8A10 10 0 0 1 22 12a16 16 0 0 1-3.2 3.5M6.6 6.6A15 15 0 0 0 2 12s3.5 6.5 10 6.5c1.4 0 2.7-.3 3.9-.8"/></svg>';
-const TRASH = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
-const PLAY = '<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
-const PAUSE = '<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
-const CHEV = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+const EYE_ON = '<span class="codicon codicon-eye"></span>';
+const EYE_OFF = '<span class="codicon codicon-eye-closed"></span>';
+const TRASH = '<span class="codicon codicon-trash"></span>';
+const PLAY = '<span class="codicon codicon-play"></span>';
+const PAUSE = '<span class="codicon codicon-debug-pause"></span>';
+const CHEV = '<span class="codicon codicon-chevron-right"></span>';
 
 export class Panel {
   constructor(state, manager, els) {
@@ -179,7 +179,7 @@ export class Panel {
     // Notion-style trailing "new block" row
     const add = document.createElement('button');
     add.className = 'nrow-add';
-    add.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> New expression <span class="nrow-add-hint">/</span>`;
+    add.innerHTML = `<span class="codicon codicon-add"></span> New expression <span class="nrow-add-hint">/</span>`;
     add.onclick = (e) => { e.stopPropagation(); this.openPalette(); };
     root.appendChild(add);
   }
@@ -859,7 +859,7 @@ export class Panel {
       for (const name of item.runtime?.unknown || []) {
         const b = document.createElement('button');
         b.className = 'mk-slider';
-        b.innerHTML = `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> slider <span class="var-name">${esc(name)}</span>`;
+        b.innerHTML = `<span class="codicon codicon-add" style="font-size:12px"></span> slider <span class="var-name">${esc(name)}</span>`;
         b.onclick = () => {
           this.state.addItem('slider', { name, value: 1 });
         };

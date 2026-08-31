@@ -236,7 +236,11 @@ export class AppState {
 
   save() {
     if (!this.persist) return;
-    try { localStorage.setItem('graphite3d.v2', JSON.stringify(this.toJSON())); } catch {}
+    try {
+      // main.js routes persistence into the active scene tab
+      if (this.persistFn) this.persistFn(this.toJSON());
+      else localStorage.setItem('graphite3d.v2', JSON.stringify(this.toJSON()));
+    } catch {}
   }
 
   saveSoon() {
