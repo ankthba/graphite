@@ -621,7 +621,23 @@ body {
   font-variant-numeric: tabular-nums;
 }
 #inspect-card td:first-child { color: var(--text-dim); padding-right: 15px; white-space: nowrap; }
-#inspect-card td:last-child { color: var(--text); text-align: right; }
+#inspect-card td:last-child { color: var(--text); text-align: right; overflow-wrap: anywhere; }
+#inspect-card sub { font-size: 8.5px; }
+#inspect-card sup { font-size: 8.5px; }
+/* typeset math blocks (symbolic partials, tangent plane) — scroll, never clip */
+.ins-mrow { display: flex; align-items: baseline; gap: 7px; }
+.ins-mlab { flex: none; color: var(--text-dim); font-family: var(--font-math); font-size: 11.5px; }
+.ins-math {
+  flex: 1; min-width: 0;
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--text);
+  overflow-x: auto;
+  padding: 2px 0 3px;
+  white-space: nowrap;
+}
+.ins-math::-webkit-scrollbar { height: 5px; }
+.ins-math .ML__latex { color: var(--text); }
 #inspect-card .ins-sec {
   padding-top: 8px; color: var(--text-faint); font-family: var(--font-ui);
   font-size: 10px; font-weight: 600; letter-spacing: .05em;

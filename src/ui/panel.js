@@ -1,5 +1,5 @@
 // Expression panel: Desmos-style item rows, add menu, color popovers, slider chips.
-import { PALETTE, COLORMAP_NAMES, colormapCSS } from '../colormaps.js';
+import { PALETTE, COLORMAP_NAMES, DISPLAY_NAMES, colormapCSS } from '../colormaps.js';
 import { makeMathField, makeEquationField, makeMathPreview, previewLatex } from './mathinput.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -965,7 +965,7 @@ export class Panel {
       for (const name of COLORMAP_NAMES) {
         const rowEl = document.createElement('div');
         rowEl.className = 'cmap-row' + (item.cmap === name ? ' sel' : '');
-        rowEl.innerHTML = `<span style="width:52px">${name}</span>`;
+        rowEl.innerHTML = `<span style="width:64px">${DISPLAY_NAMES[name] || name}</span>`;
         const bar = document.createElement('span');
         bar.className = 'cmap-bar';
         bar.style.background = colormapCSS(name);

@@ -120,3 +120,12 @@ export function makeMathPreview(latex) {
 export function previewLatex(expr) {
   return exprToLatex(String(expr ?? ''));
 }
+
+// Typeset LaTeX into an element (static markup; falls back to plain text).
+export function renderLatexInto(el, latex) {
+  try {
+    el.innerHTML = convertLatexToMarkup(latex);
+  } catch {
+    el.textContent = latex;
+  }
+}

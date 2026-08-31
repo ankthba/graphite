@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { derivative, toString as astToString } from '../math/autodiff.js';
 import { makeArrow, disposeDeep, buildCurveObject, gridSurfaceGeometry } from '../plots/build.js';
+import { previewLatex, renderLatexInto } from '../ui/mathinput.js';
 
 const fmt = (v) => {
   if (!Number.isFinite(v)) return '—';
@@ -269,15 +270,26 @@ export class Inspector {
   // Built once per inspected surface; later refreshes (e.g. every frame of a
   // slider animation) only update the tagged value cells, so the θ slider,
   // Taylor checkbox, and close button keep working while the surface moves.
+  // Symbolic partials and the tangent-plane equation are typeset math.
   buildSurfaceCard(a, b, c, fx, fy, gradMag, sfx, sfy, H) {
     const key = `surface:${this.target.itemId}`;
     const th = this.dirDeg * Math.PI / 180;
     const du = fx * Math.cos(th) + fy * Math.sin(th);
-    const tp = `z = ${fmt(c)} ${sgn(fx)} ${fmt(Math.abs(fx))}(x ${sgn(-a)} ${fmt(Math.abs(a))}) ${sgn(fy)} ${fmt(Math.abs(fy))}(y ${sgn(-b)} ${fmt(Math.abs(b))})`;
+    const tpExpr = `${fmt(c)} ${sgn(fx)} ${fmt(Math.abs(fx))}(x ${sgn(-a)} ${fmt(Math.abs(a))}) ${sgn(fy)} ${fmt(Math.abs(fy))}(y ${sgn(-b)} ${fmt(Math.abs(b))})`;
+    const tpLatex = `z = ${previewLatex(tpExpr) ?? tpExpr}`;
     const verdict = gradMag < 0.03
       ? `≈ critical point → ${H.disc > 1e-9 ? (H.fxx > 0 ? 'local minimum' : 'local maximum')
         : H.disc < -1e-9 ? 'saddle point' : 'inconclusive (D ≈ 0)'}`
       : '';
+    const paintSym = () => {
+      const cacheKey = `${sfx}${sfy}`;
+      if (this._symCache === cacheKey) return;
+      this._symCache = cacheKey;
+      const ex = this.card.querySelector('[data-sfx]');
+      const ey = this.card.querySelector('[data-sfy]');
+      if (ex) renderLatexInto(ex, previewLatex(sfx) ?? sfx);
+      if (ey) renderLatexInto(ey, previewLatex(sfy) ?? sfy);
+    };
 
     if (this._cardKey === key && !this.card.hidden && this.card.querySelector('[data-dir]')) {
       const set = (sel, txt) => { const el = this.card.querySelector(sel); if (el) el.textContent = txt; };
@@ -287,18 +299,19 @@ export class Inspector {
       set('[data-fy]', fmt(fy));
       set('[data-grad]', `⟨${fmt(fx)}, ${fmt(fy)}⟩`);
       set('[data-gmag]', fmt(gradMag));
-      set('[data-sfx]', trunc(sfx, 42));
-      set('[data-sfy]', trunc(sfy, 42));
       set('[data-hess]', `${fmt(H.fxx)}, ${fmt(H.fyy)}, ${fmt(H.fxy)}`);
       set('[data-disc]', fmt(H.disc));
-      set('[data-tp]', tp);
       set('[data-du]', fmt(du));
+      paintSym();
+      const tp = this.card.querySelector('[data-tp]');
+      if (tp) renderLatexInto(tp, tpLatex);
       const vr = this.card.querySelector('[data-verdict]');
       if (vr) { vr.textContent = verdict; vr.parentElement.style.display = verdict ? '' : 'none'; }
       return;
     }
 
     this._cardKey = key;
+    this._symCache = null;
     this.card.innerHTML = `
       <div class="ins-title">Surface at a point <button class="ins-close" title="Close">✕</button></div>
       <table>
@@ -309,20 +322,22 @@ export class Inspector {
       <tr><td>∇f</td><td data-grad>⟨${fmt(fx)}, ${fmt(fy)}⟩</td></tr>
       <tr><td>|∇f|</td><td data-gmag>${fmt(gradMag)}</td></tr>
       ${(sfx || sfy) ? `<tr><td colspan="2" class="ins-sec">SYMBOLIC PARTIALS</td></tr>
-        <tr><td>fₓ</td><td data-sfx style="font-size:11px">${escapeHtml(trunc(sfx, 42))}</td></tr>
-        <tr><td>f_y</td><td data-sfy style="font-size:11px">${escapeHtml(trunc(sfy, 42))}</td></tr>` : ''}
+        <tr><td colspan="2"><div class="ins-mrow"><span class="ins-mlab">f<sub>x</sub> =</span><div class="ins-math" data-sfx></div></div></td></tr>
+        <tr><td colspan="2"><div class="ins-mrow"><span class="ins-mlab">f<sub>y</sub> =</span><div class="ins-math" data-sfy></div></div></td></tr>` : ''}
       <tr><td colspan="2" class="ins-sec">SECOND-DERIVATIVE TEST</td></tr>
-      <tr><td>fₓₓ, f_yy, fₓ_y</td><td data-hess>${fmt(H.fxx)}, ${fmt(H.fyy)}, ${fmt(H.fxy)}</td></tr>
-      <tr><td>D = fₓₓf_yy − fₓ_y²</td><td data-disc>${fmt(H.disc)}</td></tr>
+      <tr><td>f<sub>xx</sub>, f<sub>yy</sub>, f<sub>xy</sub></td><td data-hess>${fmt(H.fxx)}, ${fmt(H.fyy)}, ${fmt(H.fxy)}</td></tr>
+      <tr><td>D = f<sub>xx</sub>f<sub>yy</sub> − f<sub>xy</sub><sup>2</sup></td><td data-disc>${fmt(H.disc)}</td></tr>
       <tr${verdict ? '' : ' style="display:none"'}><td colspan="2" style="text-align:left;color:var(--accent)" data-verdict>${verdict}</td></tr>
       <tr><td colspan="2" class="ins-sec">TANGENT PLANE</td></tr>
-      <tr><td colspan="2" style="font-size:11px;text-align:left" data-tp>${tp}</td></tr>
+      <tr><td colspan="2"><div class="ins-math" data-tp></div></td></tr>
       <tr><td colspan="2" class="ins-sec">DIRECTIONAL DERIVATIVE <span style="color:${COL.dir}">u</span></td></tr>
-      <tr><td>θ = <span data-ang>${Math.round(this.dirDeg)}</span>°</td><td>D&#7524;f = <span data-du>${fmt(du)}</span></td></tr>
+      <tr><td>θ = <span data-ang>${Math.round(this.dirDeg)}</span>°</td><td>D<sub>u</sub>f = <span data-du>${fmt(du)}</span></td></tr>
       <tr><td colspan="2"><input type="range" min="0" max="360" step="1" value="${this.dirDeg}" data-dir></td></tr>
       <tr><td colspan="2"><label class="check-row" style="margin-top:4px"><input type="checkbox" data-taylor ${this.showTaylor ? 'checked' : ''}> quadratic approximation (Taylor)</label></td></tr>
       </table>`;
     this.card.hidden = false;
+    paintSym();
+    renderLatexInto(this.card.querySelector('[data-tp]'), tpLatex);
     this.card.querySelector('.ins-close').onclick = () => this.clear();
     const slider = this.card.querySelector('[data-dir]');
     slider.oninput = () => {

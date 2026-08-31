@@ -166,6 +166,19 @@ $('btn-examples').onclick = () => {
       loadExample(state, ex);
       viewport.resetView();
       showView('expr');
+      // library scenes take the example's name (until the user edits it away)
+      const sc = scenesStore.scenes[scenesStore.active];
+      if (sc && !sc.named) {
+        sc.name = ex.name.length > 22 ? ex.name.slice(0, 21) + '…' : ex.name;
+        const plots = state.items.filter((i) => i.type !== 'slider');
+        const first = plots[0];
+        const base = String(first ? (first.expr ?? first.ex ?? first.ep ?? '') : '')
+          .replace(/\s+/g, ' ').trim();
+        // snapshot must match autoNameActive's key so the curated name sticks
+        sc.autoKey = first ? `${first.type}:${base}:${first.level ?? ''}:${plots.length}` : '';
+        saveScenesStore();
+        renderTabs();
+      }
     };
     list.appendChild(b);
   }
@@ -297,7 +310,7 @@ function renderTabs() {
       inp.onclick = (e) => e.stopPropagation();
       const commit = () => {
         const v = inp.value.trim().slice(0, 40);
-        if (v) { sc.name = v; saveScenesStore(); }
+        if (v) { sc.name = v; sc.named = true; saveScenesStore(); }
         renderTabs();
       };
       inp.onblur = commit;
@@ -323,6 +336,56 @@ function renderTabs() {
 }
 $('tab-add').onclick = addScene;
 renderTabs();
+
+/* ---------- smart tab names ----------
+   Tabs auto-name from their content: prettified math for a single plot
+   ("4sin(√(x²+y²))/…"), "expr +N" for multi-plot scenes, and library
+   scenes keep the example's curated name. A manual rename sticks. */
+const SUPS = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+function prettyExpr(s) {
+  return String(s)
+    .replace(/\s+/g, '')
+    .replace(/sqrt\(/g, '√(')
+    .replace(/cbrt\(/g, '∛(')
+    .replace(/\btheta\b/g, 'θ')
+    .replace(/\bphi\b/g, 'φ')
+    .replace(/\brho\b/g, 'ρ')
+    .replace(/\btau\b/g, 'τ')
+    .replace(/\bpi\b/g, 'π')
+    .replace(/\^\((\d)\)/g, (m, d) => SUPS[d])
+    .replace(/\^(\d)(?!\d)/g, (m, d) => SUPS[d])
+    .replace(/\*/g, '·');
+}
+function clip(s, n) {
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+function autoNameActive() {
+  const sc = scenesStore.scenes[scenesStore.active];
+  if (!sc || sc.named) return;
+  const plots = state.items.filter((i) => i.type !== 'slider');
+  const first = plots[0];
+  const base = String(first ? (first.expr ?? first.ex ?? first.ep ?? '') : '')
+    .replace(/\s+/g, ' ').trim();
+  const key = first ? `${first.type}:${base}:${first.level ?? ''}:${plots.length}` : '';
+  if (sc.autoKey === key) return; // the content driving the name is unchanged
+  sc.autoKey = key;
+  if (!first || !base) return;
+  let name;
+  if (first.type === 'implicit') {
+    name = clip(`${prettyExpr(base)} = ${prettyExpr(String(first.level ?? '0'))}`, 22);
+  } else if (first.type === 'curve' || first.type === 'parametric' || first.type === 'field') {
+    name = `⟨${clip(prettyExpr(base), 14)}, …⟩`;
+  } else {
+    name = clip(prettyExpr(base), 20);
+  }
+  if (plots.length > 1) name = `${clip(name, 14)} +${plots.length - 1}`;
+  sc.name = name;
+  saveScenesStore();
+  renderTabs();
+}
+state.on('items-changed', autoNameActive);
+state.on('item-updated', autoNameActive);
+autoNameActive();
 
 /* ---------- top bar ---------- */
 $('btn-theme').onclick = () => {
