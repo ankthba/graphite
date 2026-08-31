@@ -169,13 +169,14 @@ $('btn-examples').onclick = () => {
       // library scenes take the example's name (until the user edits it away)
       const sc = scenesStore.scenes[scenesStore.active];
       if (sc && !sc.named) {
-        sc.name = ex.name.length > 22 ? ex.name.slice(0, 21) + '…' : ex.name;
+        sc.name = ex.tab || (ex.name.length > 22 ? ex.name.slice(0, 21) + '…' : ex.name);
+        sc.hint = ex.sub || ex.name;
         const plots = state.items.filter((i) => i.type !== 'slider');
         const first = plots[0];
         const base = String(first ? (first.expr ?? first.ex ?? first.ep ?? '') : '')
           .replace(/\s+/g, ' ').trim();
         // snapshot must match autoNameActive's key so the curated name sticks
-        sc.autoKey = first ? `${first.type}:${base}:${first.level ?? ''}:${plots.length}` : '';
+        sc.autoKey = first ? `v2:${first.type}:${base}:${first.level ?? ''}:${plots.length}` : '';
         saveScenesStore();
         renderTabs();
       }
@@ -298,9 +299,13 @@ function renderTabs() {
     const t = document.createElement('div');
     t.className = 'tab' + (id === scenesStore.active ? ' active' : '');
     t.innerHTML = `<span class="codicon codicon-graph"></span><span class="tab-name"></span>`;
+    // the icon takes the scene's primary item color — tabs identify by color
+    const items = id === scenesStore.active ? state.items : (sc.data?.items || []);
+    const firstPlot = items.find((i) => i.type !== 'slider');
+    if (firstPlot?.color) t.querySelector('.codicon-graph').style.color = firstPlot.color;
     const nameEl = t.querySelector('.tab-name');
     nameEl.textContent = sc.name;
-    t.title = `${sc.name} — double-click to rename`;
+    t.title = `${sc.name}${sc.hint ? ` — ${sc.hint}` : ''} — double-click to rename`;
     t.onclick = () => switchScene(id);
     // inline rename, VS Code style
     t.ondblclick = () => {
@@ -359,6 +364,11 @@ function prettyExpr(s) {
 function clip(s, n) {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
+const TAB_TYPE_NAMES = {
+  cartesian: 'Surface', cylindrical: 'Cylindrical', spherical: 'Spherical',
+  parametric: 'Param. surface', curve: 'Curve', implicit: 'Level surface',
+  field: 'Field', point: 'Points', vector: 'Vectors',
+};
 function autoNameActive() {
   const sc = scenesStore.scenes[scenesStore.active];
   if (!sc || sc.named) return;
@@ -366,20 +376,24 @@ function autoNameActive() {
   const first = plots[0];
   const base = String(first ? (first.expr ?? first.ex ?? first.ep ?? '') : '')
     .replace(/\s+/g, ' ').trim();
-  const key = first ? `${first.type}:${base}:${first.level ?? ''}:${plots.length}` : '';
+  const key = first ? `v2:${first.type}:${base}:${first.level ?? ''}:${plots.length}` : '';
   if (sc.autoKey === key) return; // the content driving the name is unchanged
   sc.autoKey = key;
   if (!first || !base) return;
+  // at-a-glance name: a short human label; the math lives in the tooltip
   let name;
+  const pretty = prettyExpr(base);
   if (first.type === 'implicit') {
-    name = clip(`${prettyExpr(base)} = ${prettyExpr(String(first.level ?? '0'))}`, 22);
-  } else if (first.type === 'curve' || first.type === 'parametric' || first.type === 'field') {
-    name = `⟨${clip(prettyExpr(base), 14)}, …⟩`;
+    const eq = `${pretty} = ${prettyExpr(String(first.level ?? '0'))}`;
+    name = eq.length <= 14 ? eq : TAB_TYPE_NAMES.implicit; // tiny equations may speak for themselves
+  } else if (first.type === 'surface') {
+    name = pretty.length <= 14 ? pretty : TAB_TYPE_NAMES[first.mode] || 'Surface';
   } else {
-    name = clip(prettyExpr(base), 20);
+    name = TAB_TYPE_NAMES[first.type] || 'Scene';
   }
-  if (plots.length > 1) name = `${clip(name, 14)} +${plots.length - 1}`;
+  if (plots.length > 1) name = `${name} +${plots.length - 1}`;
   sc.name = name;
+  sc.hint = pretty; // full math shown on hover
   saveScenesStore();
   renderTabs();
 }

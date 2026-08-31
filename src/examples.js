@@ -5,6 +5,7 @@ export const EXAMPLES = [
   { head: 'Quadric surfaces' },
   {
     name: 'Elliptic paraboloid',
+    tab: 'Paraboloid',
     sub: 'z = x²/4 + y²/4',
     build(s) {
       s.addItem('surface', { expr: 'x^2/4 + y^2/4', cmap: 'viridis', res: 100, contours: true, contourCount: 10 });
@@ -12,6 +13,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Hyperbolic paraboloid',
+    tab: 'Saddle',
     sub: 'z = x²/8 − y²/8 · the saddle',
     build(s) {
       s.addItem('surface', { expr: 'x^2/8 - y^2/8', cmap: 'coolwarm', res: 100, contours: true, contourCount: 12 });
@@ -19,6 +21,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Hyperboloid of one sheet',
+    tab: 'Hyperboloid I',
     sub: 'x²/4 + y²/4 − z²/9 = 1',
     build(s) {
       s.addItem('implicit', { expr: 'x^2/4 + y^2/4 - z^2/9', level: '1', res: 60, cmap: 'cool' });
@@ -26,6 +29,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Hyperboloid of two sheets',
+    tab: 'Hyperboloid II',
     sub: 'z²/4 − x²/4 − y²/4 = 1',
     build(s) {
       s.addItem('implicit', { expr: 'z^2/4 - x^2/4 - y^2/4', level: '1', res: 60, cmap: 'sunset' });
@@ -33,6 +37,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Cone',
+    tab: 'Cone',
     sub: 'x² + y² − z² = 0',
     build(s) {
       s.addItem('implicit', { expr: 'x^2 + y^2 - z^2', level: '0', res: 60, cmap: 'plasma' });
@@ -40,6 +45,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Ellipsoid',
+    tab: 'Ellipsoid',
     sub: 'x²/16 + y²/9 + z²/4 = 1',
     build(s) {
       s.addItem('implicit', { expr: 'x^2/16 + y^2/9 + z^2/4', level: '1', res: 60, cmap: 'viridis' });
@@ -49,6 +55,7 @@ export const EXAMPLES = [
   { head: 'Partial derivatives & tangent planes' },
   {
     name: 'Tangent plane explorer',
+    tab: 'Tangent plane',
     sub: 'turn on Inspect, then click the surface',
     build(s) {
       s.addItem('surface', { expr: '4 - (x^2 + y^2)/4', cmap: 'viridis', res: 100, contours: true, contourCount: 10 });
@@ -56,6 +63,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Cross sections',
+    tab: 'Cross sections',
     sub: 'movable trace plane y = c through a saddle',
     build(s) {
       s.addItem('surface', {
@@ -66,6 +74,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Level curves — sombrero',
+    tab: 'Sombrero',
     sub: 'z = 4sin(r)/r with contours',
     build(s) {
       s.addItem('surface', {
@@ -76,6 +85,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Monkey saddle',
+    tab: 'Monkey saddle',
     sub: 'z = (x³ − 3xy²)/10 · degenerate critical point',
     build(s) {
       s.addItem('surface', { expr: '(x^3 - 3x y^2)/10', cmap: 'magma', res: 100, contours: true, contourCount: 10 });
@@ -83,6 +93,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Traveling wave',
+    tab: 'Wave',
     sub: 'animated with a slider',
     build(s) {
       s.addItem('surface', {
@@ -95,6 +106,7 @@ export const EXAMPLES = [
 
   {
     name: 'Riemann boxes',
+    tab: 'Riemann boxes',
     sub: 'midpoint boxes for ∬ f dA over the disk r ≤ 4',
     build(s) {
       s.addItem('surface', {
@@ -106,6 +118,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Restricted domain',
+    tab: 'Disk domain',
     sub: 'paraboloid kept only where x² + y² ≤ 16',
     build(s) {
       s.addItem('surface', {
@@ -118,6 +131,7 @@ export const EXAMPLES = [
   { head: 'Space curves' },
   {
     name: 'Helix with TNB frame',
+    tab: 'Helix',
     sub: 'moving frame, r′, r″, osculating circle',
     build(s) {
       s.addItem('curve', {
@@ -129,6 +143,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Trefoil knot',
+    tab: 'Trefoil',
     sub: 'a closed space curve',
     build(s) {
       s.addItem('curve', {
@@ -142,6 +157,7 @@ export const EXAMPLES = [
   { head: 'Vector fields' },
   {
     name: 'Rotational field',
+    tab: 'Curl field',
     sub: 'F = ⟨−y, x, 0⟩ · curl points along +z',
     build(s) {
       s.addItem('field', { ep: '-y', eq: 'x', er: '0', density: 8, cmap: 'turbo' });
@@ -149,6 +165,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Radial field',
+    tab: 'Radial field',
     sub: 'F = ⟨x, y, z⟩ · constant divergence 3',
     build(s) {
       s.addItem('field', { ep: 'x', eq: 'y', er: 'z', density: 7, cmap: 'cool' });
@@ -156,6 +173,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Flow line of a field',
+    tab: 'Flow line',
     sub: 'F = ⟨−y, x, 0.3⟩ · the helix satisfies r′(t) = F(r)',
     build(s) {
       s.addItem('field', { ep: '-y', eq: 'x', er: '0.3', density: 7, cmap: 'turbo', opacity: 0.85 });
@@ -169,6 +187,7 @@ export const EXAMPLES = [
   { head: 'Other coordinate systems' },
   {
     name: 'Cylindrical wave',
+    tab: 'Ripple',
     sub: 'z = 3sin(3r)/(1 + r/2)',
     build(s) {
       s.addItem('cylindrical', { expr: '3sin(3r)/(1 + r/2)', aMin: '0', aMax: '5', bMin: '0', bMax: '2pi', cmap: 'cool', res: 120 });
@@ -176,6 +195,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Spherical harmonic',
+    tab: 'Harmonic',
     sub: 'ρ = 3 + 0.8 sin(kθ) sin(3φ)',
     build(s) {
       s.addItem('spherical', { expr: '3 + 0.8sin(k theta)sin(3phi)', cmap: 'sunset', res: 130 });
@@ -184,6 +204,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Surface of revolution',
+    tab: "Gabriel's horn",
     sub: "Gabriel's horn: z = 2/r revolved about the z-axis",
     build(s) {
       s.addItem('cylindrical', {
@@ -196,6 +217,7 @@ export const EXAMPLES = [
   { head: 'Showpieces' },
   {
     name: 'Torus',
+    tab: 'Torus',
     sub: 'parametric surface',
     build(s) {
       s.addItem('parametric', {
@@ -206,6 +228,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Gyroid',
+    tab: 'Gyroid',
     sub: 'cos x sin y + cos y sin z + cos z sin x = 0',
     build(s) {
       s.addItem('implicit', {
@@ -216,6 +239,7 @@ export const EXAMPLES = [
   },
   {
     name: 'Wave interference',
+    tab: 'Interference',
     sub: 'two sources, animated',
     build(s) {
       s.addItem('surface', {
