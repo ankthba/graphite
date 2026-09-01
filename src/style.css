@@ -685,6 +685,10 @@ body {
   font-size: 11.5px;
 }
 #explore-card .exp-2d:hover { background: var(--hover); border-color: var(--accent); }
+#explore-card .exp-2d.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+#explore-card .exp-2d.active:hover { filter: brightness(1.08); }
 #explore-card .exp-2d .codicon { font-size: 13px; }
 
 /* settings popover — anchored to the activity bar gear */

@@ -312,7 +312,7 @@ export class PlotManager {
 
     if (item.frame) {
       const arrows = {
-        T: makeArrow('#e8604c', 0.02), N: makeArrow('#3fbf7f', 0.02), B: makeArrow('#5b8def', 0.02),
+        T: makeArrow('#e8604c', span * 0.0022), N: makeArrow('#3fbf7f', span * 0.0022), B: makeArrow('#5b8def', span * 0.0022),
       };
       const dot = new THREE.Mesh(
         new THREE.SphereGeometry(span * 0.011, 14, 14),
@@ -323,8 +323,8 @@ export class PlotManager {
       group.add(fg);
       m.frame = { arrows, dot };
       if (item.showVA) {
-        m.frame.v = makeArrow('#e07f10', 0.018);   // velocity r′
-        m.frame.a = makeArrow('#b0498d', 0.018);   // acceleration r″
+        m.frame.v = makeArrow('#e07f10', span * 0.002);   // velocity r′
+        m.frame.a = makeArrow('#b0498d', span * 0.002);   // acceleration r″
         fg.add(m.frame.v, m.frame.a);
       }
       if (item.showOsc) {
@@ -459,7 +459,7 @@ export class PlotManager {
     const dir = [fns.ex(), fns.ey(), fns.ez()];
     const len = Math.hypot(...dir);
     const g = new THREE.Group();
-    const arrow = makeArrow(item.color, this.viewport.span * 0.0035);
+    const arrow = makeArrow(item.color, this.viewport.span * 0.0028);
     arrow.userData.setArrow(from, dir, len);
     // unlike overlay arrows, a plotted vector should be clickable in Inspect
     arrow.traverse((o) => { o.userData.unpickable = false; });

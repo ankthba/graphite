@@ -582,3 +582,6 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'r') viewport.resetView(true);
   if (e.key === 'i') inspector.toggle();
 });
+
+// console/debug handle
+window.graphite = { state, viewport, manager };

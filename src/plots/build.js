@@ -142,19 +142,22 @@ export function buildCurveObject(evalPt, { tmin, tmax, samples = 400, radius, co
 /* ================= arrows ================= */
 
 // Unit arrow pointing +Z with total length 1; scale/orient via setArrow.
-export function makeArrow(color, thickness = 0.02) {
-  const headLen = 0.28, headR = thickness * 3.2;
-  const shaft = new THREE.CylinderGeometry(thickness, thickness, 1 - headLen, 8);
-  shaft.translate(0, (1 - headLen) / 2, 0);
-  const head = new THREE.ConeGeometry(headR, headLen, 12);
-  head.translate(0, 1 - headLen / 2, 0);
-  const geo = mergeGeometries([shaft, head]);
-  geo.rotateX(Math.PI / 2); // point along +Z
+// `radius` is the world-space shaft radius. Girth and head size stay constant
+// in world units no matter how long the vector is — only the shaft stretches.
+export function makeArrow(color, radius = 0.02) {
   const mat = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(color), roughness: 0.4, metalness: 0.1 });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.userData.unpickable = true;
+  const shaftGeo = new THREE.CylinderGeometry(1, 1, 1, 14);
+  shaftGeo.translate(0, 0.5, 0);
+  shaftGeo.rotateX(Math.PI / 2); // unit tube z ∈ [0, 1]
+  const headGeo = new THREE.ConeGeometry(1, 1, 20);
+  headGeo.translate(0, 0.5, 0);
+  headGeo.rotateX(Math.PI / 2); // unit cone, base z=0 → tip z=1
+  const shaft = new THREE.Mesh(shaftGeo, mat);
+  const head = new THREE.Mesh(headGeo, mat);
+  shaft.userData.unpickable = true;
+  head.userData.unpickable = true;
   const g = new THREE.Group();
-  g.add(mesh);
+  g.add(shaft, head);
   g.userData.setArrow = (from, dir, len) => {
     const d = new THREE.Vector3(...dir);
     if (!FIN(d.x) || !FIN(d.y) || !FIN(d.z) || !FIN(from[0]) || !FIN(from[1]) || !FIN(from[2])
@@ -162,7 +165,12 @@ export function makeArrow(color, thickness = 0.02) {
     g.visible = true;
     g.position.set(...from);
     g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d.normalize());
-    g.scale.set(len, len, len);
+    const headLen = Math.min(radius * 14, len * 0.45);
+    const headR = radius * 3.1;
+    const shaftLen = len - headLen;
+    shaft.scale.set(radius, radius, Math.max(shaftLen, 1e-6));
+    head.scale.set(headR, headR, headLen);
+    head.position.z = shaftLen;
   };
   return g;
 }

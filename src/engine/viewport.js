@@ -102,6 +102,13 @@ export class Viewport {
   // math (x,y,z) -> world position vector (before group rotation, i.e. set on
   // children of `world`, which uses math coordinates directly)
   resetView(animate = false) {
+    // home while locked in 2D re-frames the plan view (keeps the 3D snapshot)
+    if (this._view2d) {
+      const plane = this._view2d;
+      this._view2d = null;
+      this.setView2D(plane);
+      return;
+    }
     const c = this.center().applyEuler(this.world.rotation);
     const d = this.span * 1.55;
     const pos = new THREE.Vector3(c.x + d * 0.86, c.y + d * 0.52, c.z + d * 0.86);
@@ -174,7 +181,10 @@ export class Viewport {
   }
 
   // 'perspective' | 'orthographic'
-  setProjection(kind) {
+  setProjection(kind, _internal = false) {
+    // an outside projection change while locked in 2D exits 2D first so the
+    // controls never end up half-configured
+    if (this._view2d && !_internal) this.clearView2D();
     const ortho = kind === 'orthographic';
     // anaglyph requires a perspective camera — the two modes are exclusive
     if (ortho && this.anaglyph) this.setAnaglyph(false);
@@ -205,8 +215,21 @@ export class Viewport {
 
   // Locked plan view for 2D explorations: ortho camera straight down an axis.
   // 'top' looks down math-z at the xy-plane; 'front' looks along math-y at xz.
+  // The exact 3D camera pose is snapshotted on entry and restored verbatim on
+  // exit, so toggling 2D never loses where the user was.
   setView2D(plane) {
-    this.setProjection('orthographic');
+    if (this._view2d === plane) return;
+    if (!this._view2d && !this._saved3d) {
+      this._saved3d = {
+        pos: this.camera.position.clone(),
+        target: this.controls.target.clone(),
+        up: this.camera.up.clone(),
+        ortho: !!this.camera.isOrthographicCamera,
+        zoom: this.camera.zoom,
+        orthoH: this._orthoH,
+      };
+    }
+    this.setProjection('orthographic', true);
     this._view2d = plane;
     const mathEye = plane === 'front' ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, 1);
     const mathUp = plane === 'front' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
@@ -224,13 +247,26 @@ export class Viewport {
     this.requestRender();
   }
 
-  clearView2D(keepOrtho = false) {
+  clearView2D() {
     if (!this._view2d) return;
     this._view2d = null;
-    this.camera.up.set(0, 1, 0);
-    if (!keepOrtho) this.setProjection('perspective');
-    this.controls.enableRotate = true;
-    this.resetView(true);
+    const s = this._saved3d;
+    this._saved3d = null;
+    this.camera.up.copy(s ? s.up : new THREE.Vector3(0, 1, 0));
+    this.setProjection(s && s.ortho ? 'orthographic' : 'perspective', true);
+    if (!s) { this.resetView(true); this.onView2DCleared?.(); return; }
+    this.camera.up.copy(s.up);
+    this.camera.position.copy(s.pos);
+    if (s.ortho) {
+      this._orthoH = s.orthoH;
+      this.camera.zoom = s.zoom;
+      this._resize();
+    }
+    this._makeControls();
+    this.controls.target.copy(s.target);
+    this.controls.update();
+    this.requestRender();
+    this.onView2DCleared?.();
   }
 
   setAnaglyph(on) {
