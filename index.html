@@ -18,6 +18,9 @@
       <button class="act-btn" id="btn-examples" title="Library — Calc III scenes">
         <span class="codicon codicon-library"></span>
       </button>
+      <button class="act-btn" id="btn-explore" title="Explorations — guided Calc III concept demos">
+        <span class="codicon codicon-compass"></span>
+      </button>
       <div class="act-spacer"></div>
       <button class="act-btn" id="btn-shot" title="Save a PNG of the graph">
         <span class="codicon codicon-device-camera"></span>
@@ -48,6 +51,12 @@
         </div>
         <div id="library-list"></div>
       </div>
+      <div id="explore-view" class="side-view" hidden>
+        <div class="side-head">
+          <span class="side-title">Explorations</span>
+        </div>
+        <div id="explore-list"></div>
+      </div>
     </aside>
 
     <main id="stage">
@@ -68,6 +77,7 @@
         <button class="hud-btn" id="btn-home" title="Reset view"><span class="codicon codicon-home"></span></button>
       </div>
       <div id="inspect-card" hidden></div>
+      <div id="explore-card" hidden></div>
       <div id="settings-pop" hidden></div>
       <div id="toast" hidden></div>
       <div id="add-menu" class="menu quickpick" hidden></div>

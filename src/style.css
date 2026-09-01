@@ -645,6 +645,48 @@ body {
 #inspect-card input[type=range] { width: 100%; accent-color: var(--accent); height: 14px; }
 #inspect-card .check-row { font-size: 12px; }
 
+/* exploration guide card — top-left, mirrors the inspect readout */
+#explore-card {
+  position: absolute; left: 12px; top: 12px; z-index: 12;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-pop);
+  padding: 11px 13px; min-width: 244px; max-width: 300px;
+  font-size: 12.5px;
+}
+#explore-card .ins-title {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 7px;
+}
+#explore-card .exp-name { display: flex; align-items: center; gap: 6px; }
+#explore-card .exp-name .codicon { font-size: 13px; color: var(--accent); }
+#explore-card .ins-close { color: var(--text-faint); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+#explore-card .ins-close:hover { color: var(--text); background: var(--hover); }
+#explore-card table { border-collapse: collapse; width: 100%; }
+#explore-card td {
+  padding: 2px 0; font-family: var(--font-math); font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+#explore-card td:first-child { color: var(--text-dim); padding-right: 15px; white-space: nowrap; }
+#explore-card td:last-child { color: var(--text); text-align: right; overflow-wrap: anywhere; }
+#explore-card .exp-note {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim); font-size: 11.5px; line-height: 1.45;
+}
+#explore-card .exp-2d {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 9px; padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg); color: var(--text);
+  font-size: 11.5px;
+}
+#explore-card .exp-2d:hover { background: var(--hover); border-color: var(--accent); }
+#explore-card .exp-2d .codicon { font-size: 13px; }
+
 /* settings popover — anchored to the activity bar gear */
 #settings-pop {
   position: fixed; left: 54px; bottom: 34px; z-index: 40;

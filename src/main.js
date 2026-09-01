@@ -5,6 +5,7 @@ import { Viewport } from './engine/viewport.js';
 import { PlotManager } from './plots/manager.js';
 import { Panel } from './ui/panel.js';
 import { Inspector } from './analysis/inspect.js';
+import { ExploreCard } from './ui/explorecard.js';
 import { EXAMPLES, DEFAULT_EXAMPLE, loadExample } from './examples.js';
 
 const $ = (id) => document.getElementById(id);
@@ -121,6 +122,7 @@ const panel = new Panel(state, manager, {
 const inspector = new Inspector(viewport, state, manager, {
   card: $('inspect-card'), btn: $('btn-inspect'), status: $('sb-inspect'),
 });
+const exploreCard = new ExploreCard($('explore-card'), state, viewport);
 
 if (loaded) {
   // an intentionally empty scene stays empty — only first-ever boot gets the demo
@@ -130,41 +132,35 @@ if (loaded) {
   loadExample(state, DEFAULT_EXAMPLE);
 }
 
-/* ---------- sidebar views: Expressions / Library ---------- */
+/* ---------- sidebar views: Expressions / Library / Explorations ---------- */
 function showView(name) {
   $('expr-view').hidden = name !== 'expr';
   $('library-view').hidden = name !== 'library';
+  $('explore-view').hidden = name !== 'explore';
   $('act-expr').classList.toggle('active', name === 'expr');
   $('btn-examples').classList.toggle('active', name === 'library');
+  $('btn-explore').classList.toggle('active', name === 'explore');
 }
 $('act-expr').onclick = () => showView('expr');
 $('btn-examples').onclick = () => {
   showView($('library-view').hidden ? 'library' : 'expr');
 };
+$('btn-explore').onclick = () => {
+  showView($('explore-view').hidden ? 'explore' : 'expr');
+};
 
-/* ---------- library view ---------- */
+/* ---------- library & explorations views ---------- */
 {
-  const list = $('library-list');
-  const clearB = document.createElement('button');
-  clearB.className = 'lib-item';
-  clearB.innerHTML = `<span class="lib-name">Clear graph</span><span class="lib-sub">remove everything</span>`;
-  clearB.onclick = () => { inspector.clear(); state.clearAll(); showView('expr'); };
-  list.appendChild(clearB);
-  for (const ex of EXAMPLES) {
-    if (ex.head) {
-      const h = document.createElement('div');
-      h.className = 'lib-head';
-      h.textContent = ex.head;
-      list.appendChild(h);
-      continue;
-    }
+  const libItem = (ex) => {
     const b = document.createElement('button');
     b.className = 'lib-item';
     b.innerHTML = `<span class="lib-name">${ex.name}</span><span class="lib-sub">${ex.sub}</span>`;
     b.onclick = () => {
       inspector.clear();
+      exploreCard.hide();
       loadExample(state, ex);
       viewport.resetView();
+      if (ex.explore) exploreCard.show(ex);
       showView('expr');
       // library scenes take the example's name (until the user edits it away)
       const sc = scenesStore.scenes[scenesStore.active];
@@ -181,7 +177,28 @@ $('btn-examples').onclick = () => {
         renderTabs();
       }
     };
-    list.appendChild(b);
+    return b;
+  };
+
+  const list = $('library-list');
+  const clearB = document.createElement('button');
+  clearB.className = 'lib-item';
+  clearB.innerHTML = `<span class="lib-name">Clear graph</span><span class="lib-sub">remove everything</span>`;
+  clearB.onclick = () => { inspector.clear(); exploreCard.hide(); state.clearAll(); showView('expr'); };
+  list.appendChild(clearB);
+  // the Explorations section renders in its own sidebar view
+  let inExplore = false;
+  for (const ex of EXAMPLES) {
+    if (ex.head) {
+      inExplore = ex.head === 'Explorations';
+      if (inExplore) continue;
+      const h = document.createElement('div');
+      h.className = 'lib-head';
+      h.textContent = ex.head;
+      list.appendChild(h);
+      continue;
+    }
+    (inExplore ? $('explore-list') : list).appendChild(libItem(ex));
   }
 }
 
@@ -220,6 +237,7 @@ updateStatus();
 /* ---------- scene tab strip ---------- */
 function applySceneToApp(data, keepDark) {
   inspector.clear();
+  exploreCard.hide();
   // purge the outgoing scene's meshes through the normal disposal path
   for (const it of [...state.items]) state.emit('item-removed', it);
   panel.openId = null;

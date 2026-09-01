@@ -203,6 +203,36 @@ export class Viewport {
     this.requestRender();
   }
 
+  // Locked plan view for 2D explorations: ortho camera straight down an axis.
+  // 'top' looks down math-z at the xy-plane; 'front' looks along math-y at xz.
+  setView2D(plane) {
+    this.setProjection('orthographic');
+    this._view2d = plane;
+    const mathEye = plane === 'front' ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, 1);
+    const mathUp = plane === 'front' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
+    const c = this.center();
+    const d = this.span * 1.6;
+    const pos = c.clone().addScaledVector(mathEye, d).applyEuler(this.world.rotation);
+    this.camera.up.copy(mathUp.applyEuler(this.world.rotation));
+    this.camera.position.copy(pos);
+    this.camera.zoom = 1;
+    this.controls.target.copy(c.applyEuler(this.world.rotation));
+    this.controls.enableRotate = false;
+    this._orthoH = d * Math.tan(THREE.MathUtils.degToRad(20));
+    this._resize();
+    this.controls.update();
+    this.requestRender();
+  }
+
+  clearView2D(keepOrtho = false) {
+    if (!this._view2d) return;
+    this._view2d = null;
+    this.camera.up.set(0, 1, 0);
+    if (!keepOrtho) this.setProjection('perspective');
+    this.controls.enableRotate = true;
+    this.resetView(true);
+  }
+
   setAnaglyph(on) {
     if (on && this.camera.isOrthographicCamera) this.setProjection('perspective');
     if (on && !this.anaglyph) {
