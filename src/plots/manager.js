@@ -270,6 +270,26 @@ export class PlotManager {
       radius: span * 0.004 * (item.thick || 1), color: item.color,
     });
 
+    // shadows of the curve on the three coordinate planes (CalcPlot3D-style)
+    if (item.showProj) {
+      const B = this.state.settings.bounds;
+      const span = this.viewport.span;
+      const eps = span * 0.002;
+      const projDefs = [
+        (t, out) => { out[0] = fns.ex(t); out[1] = fns.ey(t); out[2] = B.zmin + eps; return true; },
+        (t, out) => { out[0] = B.xmin + eps; out[1] = fns.ey(t); out[2] = fns.ez(t); return true; },
+        (t, out) => { out[0] = fns.ex(t); out[1] = B.ymin + eps; out[2] = fns.ez(t); return true; },
+      ];
+      for (const proj of projDefs) {
+        const shadow = buildCurveObject(proj, {
+          tmin, tmax, samples: Math.min(item.samples | 0, 400),
+          radius: span * 0.0018, color: item.color, opacity: 0.35,
+        });
+        shadow.traverse((o) => { o.userData.unpickable = true; });
+        group.add(shadow);
+      }
+    }
+
     const m = this.meta.get(item.id);
     m.evalPt = evalPt; m.tmin = tmin; m.tmax = tmax;
 

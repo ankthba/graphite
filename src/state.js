@@ -38,7 +38,7 @@ export const TYPE_DEFAULTS = {
     type: 'curve', ex: '4cos(t)', ey: '4sin(t)', ez: 't/3',
     tMin: '-4pi', tMax: '4pi', samples: 500, thick: 1,
     color: nextColor(), frame: false, frameT: 0.25, framePlay: false,
-    showVA: false, showOsc: false,
+    showVA: false, showOsc: false, showProj: false,
   }),
   implicit: () => ({
     type: 'implicit', expr: 'x^2 + y^2 + z^2', level: '9', res: 48,

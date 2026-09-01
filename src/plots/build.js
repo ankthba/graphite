@@ -107,7 +107,7 @@ export function wireframeOverlay(geo, color, opacity = 0.22) {
 /* ================= space curves ================= */
 
 // evalPt(t, out[3]) -> bool. Splits at undefined regions; tube per run.
-export function buildCurveObject(evalPt, { tmin, tmax, samples = 400, radius, color }) {
+export function buildCurveObject(evalPt, { tmin, tmax, samples = 400, radius, color, opacity = 1 }) {
   const group = new THREE.Group();
   const runs = [];
   let cur = [];
@@ -121,6 +121,7 @@ export function buildCurveObject(evalPt, { tmin, tmax, samples = 400, radius, co
   if (cur.length) runs.push(cur);
   const mat = new THREE.MeshPhysicalMaterial({
     color: new THREE.Color(color), roughness: 0.35, metalness: 0.1, clearcoat: 0.4,
+    transparent: opacity < 1, opacity, depthWrite: opacity >= 1,
   });
   for (const run of runs) {
     if (run.length < 2) continue;

@@ -184,6 +184,138 @@ export const EXAMPLES = [
     },
   },
 
+  { head: 'Explorations' },
+  {
+    name: 'Dot product & projection',
+    tab: 'Dot product',
+    sub: 'drag u, v — proj_v(u) and the orthogonal part',
+    build(s) {
+      for (const [n, v] of [['u1', 3], ['u2', 1], ['u3', 2], ['v1', 2], ['v2', 3], ['v3', 0]]) {
+        s.addItem('slider', { name: n, value: v, min: -4, max: 4, step: 0.1 });
+      }
+      const dot = '(u1 v1 + u2 v2 + u3 v3)/(v1^2 + v2^2 + v3^2)';
+      s.addItem('vector', { ex: 'u1', ey: 'u2', ez: 'u3', color: '#e15759' });
+      s.addItem('vector', { ex: 'v1', ey: 'v2', ez: 'v3', color: '#4e79a7' });
+      s.addItem('vector', {
+        ex: `${dot} v1`, ey: `${dot} v2`, ez: `${dot} v3`, color: '#59a14f',
+      });
+      s.addItem('vector', {
+        ox: `${dot} v1`, oy: `${dot} v2`, oz: `${dot} v3`,
+        ex: `u1 - ${dot} v1`, ey: `u2 - ${dot} v2`, ez: `u3 - ${dot} v3`, color: '#b07aa1',
+      });
+    },
+  },
+  {
+    name: 'Cross product',
+    tab: 'Cross product',
+    sub: 'u×v ⟂ both — parallelogram area = |u×v|',
+    build(s) {
+      for (const [n, v] of [['a1', 3], ['a2', 0], ['a3', 1], ['b1', 1], ['b2', 2], ['b3', 0]]) {
+        s.addItem('slider', { name: n, value: v, min: -4, max: 4, step: 0.1 });
+      }
+      s.addItem('vector', { ex: 'a1', ey: 'a2', ez: 'a3', color: '#e15759' });
+      s.addItem('vector', { ex: 'b1', ey: 'b2', ez: 'b3', color: '#4e79a7' });
+      s.addItem('vector', {
+        ex: 'a2 b3 - a3 b2', ey: 'a3 b1 - a1 b3', ez: 'a1 b2 - a2 b1', color: '#59a14f',
+      });
+      s.addItem('parametric', {
+        ex: 'u a1 + v b1', ey: 'u a2 + v b2', ez: 'u a3 + v b3',
+        aMin: '0', aMax: '1', bMin: '0', bMax: '1',
+        res: 24, cmap: '', color: '#edc948', opacity: 0.45, clip: false,
+      });
+    },
+  },
+  {
+    name: 'Lagrange multipliers',
+    tab: 'Lagrange',
+    sub: 'slide s along x²+y²=8 — at the extremes ∇f ∥ ∇g',
+    build(s) {
+      s.addItem('surface', {
+        expr: 'x y/4', aMin: '-4.5', aMax: '4.5', bMin: '-4.5', bMax: '4.5',
+        cmap: 'coolwarm', res: 110, opacity: 0.85, contours: true, contourCount: 12,
+      });
+      s.addItem('curve', {
+        ex: '2sqrt(2)cos(t)', ey: '2sqrt(2)sin(t)', ez: '-4.97',
+        tMin: '0', tMax: '2pi', samples: 240, thick: 0.8, color: '#9c755f',
+      });
+      s.addItem('curve', {
+        ex: '2sqrt(2)cos(t)', ey: '2sqrt(2)sin(t)', ez: 'sin(2t)',
+        tMin: '0', tMax: '2pi', samples: 300, thick: 1.1, color: '#59a14f',
+      });
+      s.addItem('slider', { name: 's', value: 0.3, min: 0, max: 6.283, step: 0.01 });
+      s.addItem('point', {
+        ex: '2sqrt(2)cos(s)', ey: '2sqrt(2)sin(s)', ez: 'sin(2s)', label: 'P',
+      });
+      s.addItem('vector', {
+        ox: '2sqrt(2)cos(s)', oy: '2sqrt(2)sin(s)', oz: '-4.97',
+        ex: 'sqrt(2)sin(s)', ey: 'sqrt(2)cos(s)', ez: '0', color: '#f28e2b',
+      });
+      s.addItem('vector', {
+        ox: '2sqrt(2)cos(s)', oy: '2sqrt(2)sin(s)', oz: '-4.97',
+        ex: '2sqrt(2)cos(s)', ey: '2sqrt(2)sin(s)', ez: '0', color: '#76b7b2',
+      });
+    },
+  },
+  {
+    name: 'Line meets plane',
+    tab: 'Line & plane',
+    sub: 'r(t) = ⟨t, 2t−1, t+1⟩ pierces x + y + z = 3 at P',
+    build(s) {
+      s.addItem('parametric', {
+        ex: 'u', ey: 'v', ez: '3 - u - v',
+        aMin: '-4', aMax: '4', bMin: '-4', bMax: '4',
+        res: 30, cmap: '', color: '#76b7b2', opacity: 0.5, clip: true,
+      });
+      s.addItem('curve', {
+        ex: 't', ey: '2t - 1', ez: 't + 1',
+        tMin: '-2.5', tMax: '2.5', samples: 120, thick: 1.2, color: '#e15759',
+      });
+      s.addItem('point', { ex: '0.75', ey: '0.5', ez: '1.75', label: 'P', color: '#edc948' });
+    },
+  },
+  {
+    name: 'Curve shadows',
+    tab: 'Shadows',
+    sub: 'a helix projected onto the three coordinate planes',
+    build(s) {
+      s.addItem('curve', {
+        ex: '3cos(t)', ey: '3sin(t)', ez: 't/2',
+        tMin: '-4pi', tMax: '4pi', samples: 500, thick: 1.4, showProj: true,
+      });
+    },
+  },
+  {
+    name: 'Line integral fence',
+    tab: 'Fence',
+    sub: 'fence under f along C — its area is ∫ f ds',
+    build(s) {
+      s.addItem('surface', {
+        expr: '4 - (x^2 + y^2)/6', cmap: 'viridis', res: 90, opacity: 0.3,
+      });
+      s.addItem('parametric', {
+        ex: 'u', ey: '2sin(u/2)', ez: 'v(4 - (u^2 + 4sin(u/2)^2)/6)',
+        aMin: '-4', aMax: '4', bMin: '0', bMax: '1',
+        res: 70, cmap: '', color: '#f28e2b', opacity: 0.85, clip: false,
+      });
+      s.addItem('curve', {
+        ex: 't', ey: '2sin(t/2)', ez: '-4.97',
+        tMin: '-4', tMax: '4', samples: 160, thick: 0.9, color: '#9c755f',
+      });
+    },
+  },
+  {
+    name: 'Projectile motion',
+    tab: 'Projectile',
+    sub: 'watch v and a evolve along the flight',
+    build(s) {
+      s.addItem('curve', {
+        ex: 't', ey: 't', ez: '4t - t^2',
+        tMin: '0', tMax: '4', samples: 200, thick: 1.3,
+        frame: true, framePlay: true, frameT: 0, showVA: true, showProj: true,
+      });
+    },
+  },
+
   { head: 'Other coordinate systems' },
   {
     name: 'Cylindrical wave',

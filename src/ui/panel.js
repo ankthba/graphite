@@ -653,6 +653,7 @@ export class Panel {
     this.advSection(item, body, (sec) => {
       this.rangeRow(sec, 'Samples', item.samples, 60, 2000, 20, (v) => `${v}`, (v) => this.state.patch(item.id, { samples: v }));
       this.rangeRow(sec, 'Thickness', item.thick, 0.3, 3, 0.1, (v) => `${v.toFixed(1)}×`, (v) => this.state.patch(item.id, { thick: v }));
+      this.checkRow(sec, 'Shadows on the coordinate planes', item.showProj, (v) => this.state.patch(item.id, { showProj: v }));
       this.checkRow(sec, 'TNB frame + curvature κ', item.frame, (v) => { this.state.patch(item.id, { frame: v }); this.rerenderCard(this.state.get(item.id)); });
       if (item.frame) {
         this.checkRow(sec, 'Velocity r′ & acceleration r″ vectors', item.showVA, (v) => this.state.patch(item.id, { showVA: v }));
