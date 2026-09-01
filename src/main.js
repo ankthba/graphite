@@ -387,7 +387,8 @@ function prettyExpr(s) {
     .replace(/\bpi\b/g, 'π')
     .replace(/\^\((\d)\)/g, (m, d) => SUPS[d])
     .replace(/\^(\d)(?!\d)/g, (m, d) => SUPS[d])
-    .replace(/\*/g, '·');
+    .replace(/\*/g, '·')
+    .replace(/(?<![a-zA-Zα-ωΑ-Ω0-9√∛])\(([a-zA-Zα-ωΑ-Ω0-9.]{1,3})\)/g, '$1'); // (π)/(6) → π/6, sin(x) untouched
 }
 function clip(s, n) {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;

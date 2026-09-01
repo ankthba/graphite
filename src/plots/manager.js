@@ -110,8 +110,8 @@ export class PlotManager {
     const fns = {};
     const asts = {};
     let ok = true;
-    for (const [prop, intrinsics] of defs) {
-      const c = this.state.compileExpr(String(item[prop] ?? ''), intrinsics);
+    for (const [prop, intrinsics, srcOverride] of defs) {
+      const c = this.state.compileExpr(String(srcOverride ?? item[prop] ?? ''), intrinsics);
       if (c.error) { runtime.errors[prop] = c.error; ok = false; continue; }
       for (const u of c.unknown) unknown.add(u);
       for (const u of c.used) used.add(u);
@@ -397,10 +397,19 @@ export class PlotManager {
 
   /* ---------------- implicit surface ---------------- */
   buildImplicit(item, runtime) {
-    const { fns, ok } = this._compileSet(item, runtime, [['expr', ['x', 'y', 'z']]]);
+    // A right side with variables (rho = 2cos(phi), z = sin(x), level k with a
+    // slider…) folds into F − G = 0; a pure constant stays a plain level.
+    const lvlSrc = String(item.level ?? '0').trim() || '0';
+    let lvlHasVars = false;
+    try { lvlHasVars = freeVars(parse(lvlSrc)).length > 0; } catch { /* level error surfaces below */ }
+    const combined = lvlHasVars ? `(${String(item.expr ?? '0')}) - (${lvlSrc})` : undefined;
+    const { fns, ok } = this._compileSet(item, runtime, [['expr', ['x', 'y', 'z'], combined]]);
     if (!ok) return null;
-    this._trackConstSliders(item, [item.level]);
-    const level = this.state.evalConst(item.level, 0);
+    let level = 0;
+    if (!lvlHasVars) {
+      this._trackConstSliders(item, [item.level]);
+      level = this.state.evalConst(item.level, 0);
+    }
     const B = this.state.settings.bounds;
     const n = item.res | 0;
     const m = this.meta.get(item.id);

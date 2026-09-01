@@ -1,6 +1,7 @@
 // Central app state: items, sliders, settings, compile helpers, persistence.
 import { parse } from './math/parser.js';
 import { compile, freeVars, evalNode } from './math/compiler.js';
+import { substCoordVars } from './math/coords.js';
 import { CONSTANTS, FUNCTIONS } from './math/builtins.js';
 import { nextColor } from './colormaps.js';
 
@@ -152,7 +153,11 @@ export class AppState {
   // raw takes (...intrinsics, ...usedSliderValues).
   compileExpr(src, intrinsics) {
     try {
-      const ast = parse(src);
+      let ast = parse(src);
+      // Cartesian contexts understand r/theta/rho/phi as coordinate names
+      if (intrinsics.includes('x') && intrinsics.includes('y')) {
+        ast = substCoordVars(ast, intrinsics);
+      }
       const vars = freeVars(ast);
       const sliders = this.sliders();
       const used = [], unknown = [];
