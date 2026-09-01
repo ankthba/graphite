@@ -677,19 +677,9 @@ body {
   border-top: 1px solid var(--border);
   color: var(--text-dim); font-size: 11.5px; line-height: 1.45;
 }
-#explore-card .exp-2d {
-  display: flex; align-items: center; gap: 6px;
-  margin-top: 9px; padding: 4px 10px;
-  border: 1px solid var(--border); border-radius: 4px;
-  background: var(--bg); color: var(--text);
-  font-size: 11.5px;
-}
-#explore-card .exp-2d:hover { background: var(--hover); border-color: var(--accent); }
-#explore-card .exp-2d.active {
-  background: var(--accent); border-color: var(--accent); color: #fff;
-}
-#explore-card .exp-2d.active:hover { filter: brightness(1.08); }
-#explore-card .exp-2d .codicon { font-size: 13px; }
+#btn-2d { font-size: 10.5px; font-weight: 700; letter-spacing: .03em; }
+#hud-br .hud-btn.active { background: var(--accent); color: #fff; }
+#hud-br .hud-btn.active:hover { background: var(--accent); color: #fff; filter: brightness(1.08); }
 
 /* settings popover — anchored to the activity bar gear */
 #settings-pop {

@@ -14,16 +14,15 @@ export class ExploreCard {
     };
     state.on('slider-value', sched);
     state.on('item-updated', sched);
-    // if the viewport leaves 2D for any other reason, keep the toggle honest
-    viewport.onView2DCleared = () => {
-      if (this._2d) { this._2d = false; this._syncBtn?.(); }
-    };
   }
 
   show(ex) {
-    if (this.ex) this._leave2D();
     this.ex = ex;
-    this._2d = false;
+    // aim the HUD 2D toggle at this exploration's natural plane
+    this.viewport.preferred2D = ex.explore.view2d || 'top';
+    if (this.viewport._view2d && this.viewport._view2d !== this.viewport.preferred2D) {
+      this.viewport.setView2D(this.viewport.preferred2D);
+    }
     const el = this.el;
     el.innerHTML = '';
 
@@ -48,27 +47,6 @@ export class ExploreCard {
       el.appendChild(note);
     }
 
-    if (ex.explore.view2d) {
-      const btn = document.createElement('button');
-      btn.className = 'exp-2d';
-      btn.innerHTML = '<span class="codicon codicon-symbol-interface"></span> 2D view';
-      btn.title = 'Flat 2D view — toggle off and your 3D camera comes back exactly where it was';
-      this._syncBtn = () => {
-        btn.classList.toggle('active', this._2d);
-        btn.setAttribute('aria-pressed', String(this._2d));
-      };
-      this._syncBtn();
-      btn.onclick = () => {
-        this._2d = !this._2d;
-        if (this._2d) this.viewport.setView2D(ex.explore.view2d);
-        else this.viewport.clearView2D();
-        this._syncBtn();
-      };
-      el.appendChild(btn);
-    } else {
-      this._syncBtn = null;
-    }
-
     this._paintRows();
     el.hidden = false;
   }
@@ -84,16 +62,10 @@ export class ExploreCard {
     }
   }
 
-  _leave2D() {
-    const was = this._2d;
-    this._2d = false;
-    if (was) this.viewport.clearView2D();
-  }
-
   hide() {
     if (!this.ex) return;
-    this._leave2D();
     this.ex = null;
+    this.viewport.preferred2D = 'top';
     this.el.hidden = true;
   }
 }

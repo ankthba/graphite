@@ -66,6 +66,117 @@ export function buildAxes(bounds, opts) {
 
   const track = (o) => { disposables.push(o); return o; };
 
+  // ---- flat 2D mode: one graph-paper plane + in-plane axes, nothing 3D ----
+  // 'top' presents the xy-plane (camera locked above), 'front' the xz-plane
+  // (camera locked at -y). Everything sits behind the plotted content.
+  if (opts.flat) {
+    const isTop = opts.flat === 'top';
+    const sx2 = niceStep(xmax - xmin), sv2 = isTop ? niceStep(ymax - ymin) : niceStep(zmax - zmin);
+    const uMin = xmin, uMax = xmax;
+    const vMin = isTop ? ymin : zmin, vMax = isTop ? ymax : zmax;
+    const eps2 = span * 0.002;
+    // depth farthest from the camera, stepping toward it per layer
+    const wBack = isTop ? zmin : ymax;
+    const toCam = isTop ? 1 : -1;
+    const place = isTop ? (u, v, w) => [u, v, w] : (u, v, w) => [u, w, v];
+
+    // paper
+    const fillGeo = track(new THREE.PlaneGeometry(uMax - uMin, vMax - vMin));
+    const fill = new THREE.Mesh(fillGeo, track(new THREE.MeshBasicMaterial({
+      color: cWall, side: THREE.DoubleSide, transparent: true, opacity: dark ? 0.85 : 0.8,
+      depthWrite: false,
+    })));
+    fill.position.set(...place((uMin + uMax) / 2, (vMin + vMax) / 2, wBack));
+    if (!isTop) {
+      const M = new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, -1, 0));
+      fill.quaternion.setFromRotationMatrix(M);
+    }
+    fill.userData.unpickable = true;
+    fill.renderOrder = -3;
+    group.add(fill);
+
+    // grid
+    const wGrid = wBack + toCam * eps2;
+    const placeLine = (u, v) => place(u, v, wGrid);
+    if (opts.grid !== false) {
+      const minor = wallLines(uMin, uMax, vMin, vMax, sx2 / 5, sv2 / 5, placeLine,
+        cGridMinor, dark ? 0.45 : 0.55);
+      minor.renderOrder = -2;
+      const major = wallLines(uMin, uMax, vMin, vMax, sx2, sv2, placeLine,
+        cGridMajor, dark ? 0.8 : 0.95);
+      major.renderOrder = -1;
+      group.add(minor, major);
+    }
+
+    if (opts.labels !== false) {
+      const clamp2 = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+      const u0 = clamp2(0, uMin, uMax), v0 = clamp2(0, vMin, vMax);
+      const wAxis = wBack + toCam * eps2 * 2;
+      const axisR = span * 0.0026;
+      const vName = isTop ? 'y' : 'z';
+      const vColor = isTop ? cAxis.y : cAxis.z;
+      const addFlatAxis = (along, color, lo, hi) => {
+        const geo = track(new THREE.CylinderGeometry(axisR, axisR, hi - lo, 8));
+        const mat = track(new THREE.MeshBasicMaterial({ color }));
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.userData.unpickable = true;
+        const mid = (lo + hi) / 2;
+        const pos = along === 'u' ? place(mid, v0, wAxis) : place(u0, mid, wAxis);
+        mesh.position.set(...pos);
+        // cylinder axis is local Y: lay it along the in-plane direction
+        if (along === 'u') mesh.rotation.z = -Math.PI / 2;
+        else if (!isTop) mesh.rotation.x = Math.PI / 2; // v = math z
+        group.add(mesh);
+        const cg = track(new THREE.ConeGeometry(axisR * 4, axisR * 14, 16));
+        const cone = new THREE.Mesh(cg, mat);
+        cone.userData.unpickable = true;
+        cone.position.set(...(along === 'u' ? place(hi, v0, wAxis) : place(u0, hi, wAxis)));
+        if (along === 'u') cone.rotation.z = -Math.PI / 2;
+        else if (!isTop) cone.rotation.x = Math.PI / 2;
+        group.add(cone);
+        const lab = textSprite(along === 'u' ? 'x' : vName,
+          { color: cAxisLabel, halo, size: 50, weight: 600, italic: true });
+        const off = span * 0.03;
+        lab.position.set(...(along === 'u' ? place(hi + off, v0, wAxis) : place(u0, hi + off, wAxis)));
+        const s = span * 0.036;
+        lab.scale.set(s * lab.userData.aspect, s, 1);
+        track(lab.material.map); track(lab.material);
+        group.add(lab);
+      };
+      addFlatAxis('u', cAxis.x, uMin, uMax);
+      addFlatAxis('v', vColor, vMin, vMax);
+
+      const off = span * 0.024;
+      const tickDefs2 = [
+        [sx2, uMin, uMax, (t) => place(t, v0 - off, wAxis), (t) => place(t, v0, wAxis), cAxis.x],
+        [sv2, vMin, vMax, (t) => place(u0 - off, t, wAxis), (t) => place(u0, t, wAxis), vColor],
+      ];
+      for (const [step, lo, hi, labelAt, dotAt, dotColor] of tickDefs2) {
+        for (let t = Math.ceil(lo / step) * step; t <= hi - step * 0.4; t += step) {
+          if (Math.abs(t) < step * 1e-6) continue;
+          const sp = textSprite(fmtTick(t, step), { color: cLabel, halo, size: 34 });
+          sp.position.set(...labelAt(t));
+          const s = span * 0.021;
+          sp.scale.set(s * sp.userData.aspect, s, 1);
+          track(sp.material.map); track(sp.material);
+          group.add(sp);
+          const tg = track(new THREE.SphereGeometry(axisR * 1.3, 6, 6));
+          const tm = new THREE.Mesh(tg, track(new THREE.MeshBasicMaterial({ color: dotColor })));
+          tm.position.set(...dotAt(t));
+          tm.userData.unpickable = true;
+          group.add(tm);
+        }
+      }
+    }
+
+    return {
+      group,
+      update() {},
+      dispose() { for (const d of disposables) d.dispose && d.dispose(); },
+    };
+  }
+
   // ---- bounding box edges ----
   if (opts.box !== false) {
     const boxGeo = track(new THREE.BufferGeometry());

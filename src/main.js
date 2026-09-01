@@ -124,6 +124,15 @@ const inspector = new Inspector(viewport, state, manager, {
 });
 const exploreCard = new ExploreCard($('explore-card'), state, viewport);
 
+/* ---------- HUD 2D view toggle ---------- */
+const sync2dBtn = () => $('btn-2d').classList.toggle('active', !!viewport._view2d);
+$('btn-2d').onclick = () => {
+  if (viewport._view2d) viewport.clearView2D();
+  else viewport.setView2D(viewport.preferred2D || 'top');
+  sync2dBtn();
+};
+viewport.onView2DCleared = sync2dBtn;
+
 if (loaded) {
   // an intentionally empty scene stays empty — only first-ever boot gets the demo
   panel.renderAll();
@@ -238,6 +247,7 @@ updateStatus();
 function applySceneToApp(data, keepDark) {
   inspector.clear();
   exploreCard.hide();
+  viewport.clearView2D(); // scene tabs open in their own 3D view
   // purge the outgoing scene's meshes through the normal disposal path
   for (const it of [...state.items]) state.emit('item-removed', it);
   panel.openId = null;

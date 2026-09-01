@@ -72,6 +72,7 @@ export class Viewport {
 
     this.bounds = { xmin: -5, xmax: 5, ymin: -5, ymax: 5, zmin: -5, zmax: 5 };
     this.axes = null;
+    this.preferred2D = 'top'; // plane the 2D toggle uses; explorations override
     this.axisOptions = { grid: true, labels: true, box: true };
     this.dark = false;
     this._updateShadowRig();
@@ -231,6 +232,8 @@ export class Viewport {
     }
     this.setProjection('orthographic', true);
     this._view2d = plane;
+    this.shadowCatcher.visible = false;
+    this.rebuildAxes(); // flat 2D presentation: grid plane + in-plane axes only
     const mathEye = plane === 'front' ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 0, 1);
     const mathUp = plane === 'front' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
     const c = this.center();
@@ -250,6 +253,8 @@ export class Viewport {
   clearView2D() {
     if (!this._view2d) return;
     this._view2d = null;
+    this.shadowCatcher.visible = true;
+    this.rebuildAxes();
     const s = this._saved3d;
     this._saved3d = null;
     this.camera.up.copy(s ? s.up : new THREE.Vector3(0, 1, 0));
@@ -296,7 +301,7 @@ export class Viewport {
 
   rebuildAxes() {
     if (this.axes) { this.world.remove(this.axes.group); this.axes.dispose(); }
-    this.axes = buildAxes(this.bounds, { dark: this.dark, ...this.axisOptions });
+    this.axes = buildAxes(this.bounds, { dark: this.dark, ...this.axisOptions, flat: this._view2d || null });
     this.world.add(this.axes.group);
     this.requestRender();
   }
