@@ -528,6 +528,7 @@ export class Panel {
         this.checkRow(sec, 'Level curves drawn on the surface', item.contours, (v) => { this.state.patch(item.id, { contours: v }); this.rerenderCard(this.state.get(item.id)); });
         if (item.contours) {
           this.checkRow(sec, 'Also project them onto the floor (topo map)', item.contourFloor, (v) => this.state.patch(item.id, { contourFloor: v }));
+          this.checkRow(sec, 'Show only the level curves (hide the surface)', item.contoursOnly, (v) => this.state.patch(item.id, { contoursOnly: v }));
           this.rangeRow(sec, 'Levels', item.contourCount, 4, 30, 1, (v) => `${v}`, (v) => this.state.patch(item.id, { contourCount: v }));
         }
         this.sectionControl(item, sec);
@@ -722,6 +723,7 @@ export class Panel {
       this.checkRow(sec, 'Level curves drawn on the surface (slices z = c)', item.contours, (v) => { this.state.patch(item.id, { contours: v }); this.rerenderCard(this.state.get(item.id)); });
       if (item.contours) {
         this.checkRow(sec, 'Also project them onto the floor (topo map)', item.contourFloor, (v) => this.state.patch(item.id, { contourFloor: v }));
+        this.checkRow(sec, 'Show only the level curves (hide the surface)', item.contoursOnly, (v) => this.state.patch(item.id, { contoursOnly: v }));
         this.rangeRow(sec, 'Levels', item.contourCount || 12, 4, 30, 1, (v) => `${v}`, (v) => this.state.patch(item.id, { contourCount: v }));
       }
     });

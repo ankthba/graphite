@@ -680,6 +680,7 @@ body {
 #btn-2d { font-size: 10.5px; font-weight: 700; letter-spacing: .03em; }
 #hud-br .hud-btn.active { background: var(--accent); color: #fff; }
 #hud-br .hud-btn.active:hover { background: var(--accent); color: #fff; filter: brightness(1.08); }
+#hud-br #btn-levels.only { background: var(--text); border-color: var(--text); } /* curves-only state */
 
 /* settings popover — anchored to the activity bar gear */
 #settings-pop {

@@ -179,8 +179,13 @@ export class PlotManager {
       color: item.color, opacity: item.opacity, map: cmapTex,
     }));
     mesh.renderOrder = item.opacity < 1 ? 2 : 0;
-    group.add(mesh);
-    if (item.wire) group.add(wireframeOverlay(geo, this.state.settings.dark ? 0xffffff : 0x223, 0.13));
+    const curvesOnly = item.contours && item.contoursOnly && item.mode === 'cartesian';
+    if (!curvesOnly) {
+      group.add(mesh);
+      if (item.wire) group.add(wireframeOverlay(geo, this.state.settings.dark ? 0xffffff : 0x223, 0.13));
+    } else {
+      geo.dispose(); mesh.material.dispose(); if (cmapTex) cmapTex.dispose();
+    }
 
     if (item.contours && item.mode === 'cartesian' && geo.getIndex().count > 0) {
       const n = Math.max(2, item.contourCount | 0);
@@ -424,7 +429,8 @@ export class PlotManager {
       color: item.color, opacity: item.opacity, map: cmapTex,
     }));
     mesh.renderOrder = item.opacity < 1 ? 2 : 0;
-    group.add(mesh);
+    if (!(item.contours && item.contoursOnly)) group.add(mesh);
+    else { geo.dispose(); mesh.material.dispose(); if (cmapTex) cmapTex.dispose(); }
 
     if (item.contours && geo.getAttribute('position').count > 0) {
       const n = Math.max(2, (item.contourCount || 12) | 0);

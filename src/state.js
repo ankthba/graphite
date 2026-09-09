@@ -13,21 +13,21 @@ export const TYPE_DEFAULTS = {
     type: 'surface', mode: 'cartesian', expr: 'sin(x)cos(y)',
     aMin: '-5', aMax: '5', bMin: '-5', bMax: '5',
     res: 96, cmap: 'viridis', color: nextColor(), opacity: 1, wire: false,
-    contours: false, contourCount: 12, contourFloor: false, clip: true,
+    contours: false, contourCount: 12, contourFloor: false, contoursOnly: false, clip: true,
     restrict: '', section: 'none', sectionVal: 0, riemann: false, riemannN: 8,
   }),
   cylindrical: () => ({
     type: 'surface', mode: 'cylindrical', expr: 'r sin(3theta)/2 + 1',
     aMin: '0', aMax: '4', bMin: '0', bMax: '2pi',
     res: 96, cmap: 'plasma', color: nextColor(), opacity: 1, wire: false,
-    contours: false, contourCount: 12, contourFloor: false, clip: true,
+    contours: false, contourCount: 12, contourFloor: false, contoursOnly: false, clip: true,
     restrict: '', section: 'none', sectionVal: 0, riemann: false, riemannN: 8,
   }),
   spherical: () => ({
     type: 'surface', mode: 'spherical', expr: '3 + 0.6sin(4theta)sin(3phi)',
     aMin: '0', aMax: '2pi', bMin: '0', bMax: 'pi',
     res: 110, cmap: 'sunset', color: nextColor(), opacity: 1, wire: false,
-    contours: false, contourCount: 12, contourFloor: false, clip: false,
+    contours: false, contourCount: 12, contourFloor: false, contoursOnly: false, clip: false,
     restrict: '', section: 'none', sectionVal: 0, riemann: false, riemannN: 8,
   }),
   parametric: () => ({
@@ -44,7 +44,7 @@ export const TYPE_DEFAULTS = {
   implicit: () => ({
     type: 'implicit', expr: 'x^2 + y^2 + z^2', level: '9', res: 48,
     cmap: '', color: nextColor(), opacity: 1, wire: false,
-    contours: false, contourCount: 12, contourFloor: false,
+    contours: false, contourCount: 12, contourFloor: false, contoursOnly: false,
   }),
   field: () => ({
     type: 'field', ep: '-y', eq: 'x', er: 'z/2',

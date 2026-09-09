@@ -136,18 +136,30 @@ viewport.onView2DCleared = sync2dBtn;
 /* ---------- HUD level-curves toggle (every visible z = f(x,y) surface and level surface) ---------- */
 const levelTargets = () => state.items.filter((it) =>
   it.visible && ((it.type === 'surface' && it.mode === 'cartesian') || it.type === 'implicit'));
+// Three states, cycled by the button: off -> curves on the surface (+ floor) -> curves only
+// (surface hidden) -> off.
+const levelsState = (t) => {
+  if (!t.length || !t.every((it) => it.contours)) return 'off';
+  return t.every((it) => it.contoursOnly) ? 'only' : 'on';
+};
 const syncLevelsBtn = () => {
-  const t = levelTargets();
-  $('btn-levels').classList.toggle('active', t.length > 0 && t.every((it) => it.contours));
+  const st = levelsState(levelTargets());
+  const b = $('btn-levels');
+  b.classList.toggle('active', st !== 'off');
+  b.classList.toggle('only', st === 'only');
 };
 $('btn-levels').onclick = () => {
   const t = levelTargets();
   if (!t.length) { toast('Level curves need a z = f(x,y) surface or a level surface F(x,y,z) = k'); return; }
-  const on = !t.every((it) => it.contours);
+  const st = levelsState(t);
+  const patch = st === 'off' ? { contours: true, contourFloor: true, contoursOnly: false }
+    : st === 'on' ? { contoursOnly: true }
+    : { contours: false, contoursOnly: false };
   for (const it of t) {
-    state.patch(it.id, on ? { contours: true, contourFloor: true } : { contours: false });
+    state.patch(it.id, patch);
     panel.rerenderCard(state.get(it.id));
   }
+  if (st === 'on') toast('Level curves only — click again to turn them off');
   syncLevelsBtn();
 };
 state.on('item-updated', syncLevelsBtn);
