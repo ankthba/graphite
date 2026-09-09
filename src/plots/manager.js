@@ -174,9 +174,9 @@ export class PlotManager {
     });
     const group = new THREE.Group();
     const useCmap = !!item.cmap;
-    if (useCmap) applyColormap(geo, item.cmap, zRange);
+    const cmapTex = useCmap ? applyColormap(geo, item.cmap, zRange) : null;
     const mesh = new THREE.Mesh(geo, surfaceMaterial({
-      color: item.color, opacity: item.opacity, useVertexColors: useCmap,
+      color: item.color, opacity: item.opacity, map: cmapTex,
     }));
     mesh.renderOrder = item.opacity < 1 ? 2 : 0;
     group.add(mesh);
@@ -241,9 +241,9 @@ export class PlotManager {
     });
     const group = new THREE.Group();
     const useCmap = !!item.cmap;
-    if (useCmap) applyColormap(geo, item.cmap, zRange);
+    const cmapTex = useCmap ? applyColormap(geo, item.cmap, zRange) : null;
     const mesh = new THREE.Mesh(geo, surfaceMaterial({
-      color: item.color, opacity: item.opacity, useVertexColors: useCmap,
+      color: item.color, opacity: item.opacity, map: cmapTex,
     }));
     mesh.renderOrder = item.opacity < 1 ? 2 : 0;
     group.add(mesh);
@@ -419,9 +419,9 @@ export class PlotManager {
     });
     const group = new THREE.Group();
     const useCmap = !!item.cmap;
-    if (useCmap) applyColormap(geo, item.cmap, zRange);
+    const cmapTex = useCmap ? applyColormap(geo, item.cmap, zRange) : null;
     const mesh = new THREE.Mesh(geo, surfaceMaterial({
-      color: item.color, opacity: item.opacity, useVertexColors: useCmap,
+      color: item.color, opacity: item.opacity, map: cmapTex,
     }));
     mesh.renderOrder = item.opacity < 1 ? 2 : 0;
     group.add(mesh);

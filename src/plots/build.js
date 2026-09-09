@@ -22,66 +22,217 @@ const FIN = Number.isFinite;
 /* ================= grid surfaces (cartesian / cylindrical / spherical / parametric) ================= */
 
 // map(u,v) must write [x,y,z] into out and return true, or return false for undefined.
+//
+// Domain edges and clipping. Undefined samples (NaN, or |z| beyond 1e30) do not just punch
+// out their cells: every grid edge from a defined sample into an undefined one is bisected
+// in (u,v) to the last defined point, and each cell's defined region — the square with its
+// undefined corners cut off — is triangulated. With clipZ, triangles are clipped against the
+// z = zmin / zmax planes rather than whole vertices being dropped, and each clip vertex is
+// root-found on the surface along its edge (a linear fallback covers jumps), so a surface
+// leaves the box along a smooth curve and a pole like 1/sqrt(x²−y) becomes a wall standing
+// exactly on its domain edge instead of a sawtooth.
 export function gridSurfaceGeometry(map, { nu, nv, uMin, uMax, vMin, vMax, clipZ = null }) {
   const W = nu + 1, H = nv + 1;
-  const pos = new Float32Array(W * H * 3);
-  const ok = new Uint8Array(W * H);
+  const U = (i) => uMin + (uMax - uMin) * (i / nu);
+  const V = (j) => vMin + (vMax - vMin) * (j / nv);
   const out = [0, 0, 0];
-  let zLo = Infinity, zHi = -Infinity;
+  const evalAt = (u, v) => map(u, v, out) && FIN(out[0]) && FIN(out[1]) && FIN(out[2]) && Math.abs(out[2]) < 1e30;
+
+  // vertex store: position + (u,v) so edges can be searched along the surface
+  const px = [], py = [], pz = [], pu = [], pv = [];
+  const addV = (u, v, x, y, z) => { pu.push(u); pv.push(v); px.push(x); py.push(y); pz.push(z); return px.length - 1; };
+
+  const gid = new Int32Array(W * H).fill(-1); // vertex index per grid point, -1 if undefined
   for (let j = 0; j < H; j++) {
-    const v = vMin + (vMax - vMin) * (j / nv);
+    const v = V(j);
     for (let i = 0; i < W; i++) {
-      const u = uMin + (uMax - uMin) * (i / nu);
-      const idx = j * W + i;
-      let good = map(u, v, out) && FIN(out[0]) && FIN(out[1]) && FIN(out[2]);
-      if (good && clipZ && (out[2] < clipZ[0] || out[2] > clipZ[1])) good = false;
-      if (good) {
-        pos[idx * 3] = out[0]; pos[idx * 3 + 1] = out[1]; pos[idx * 3 + 2] = out[2];
-        ok[idx] = 1;
-        if (out[2] < zLo) zLo = out[2];
-        if (out[2] > zHi) zHi = out[2];
-      }
+      const u = U(i);
+      if (evalAt(u, v)) gid[j * W + i] = addV(u, v, out[0], out[1], out[2]);
     }
   }
+
+  // Last defined point walking from defined grid point g toward undefined grid point n.
+  const bCache = new Map();
+  function boundaryVertex(g, n) {
+    const key = g * W * H + n;
+    let id = bCache.get(key);
+    if (id !== undefined) return id;
+    const u0 = U(g % W), v0 = V((g / W) | 0), u1 = U(n % W), v1 = V((n / W) | 0);
+    let lo = 0, hi = 1;
+    let bx = px[gid[g]], by = py[gid[g]], bz = pz[gid[g]];
+    for (let it = 0; it < 24; it++) {
+      const m = 0.5 * (lo + hi);
+      if (evalAt(u0 + m * (u1 - u0), v0 + m * (v1 - v0))) { lo = m; bx = out[0]; by = out[1]; bz = out[2]; }
+      else hi = m;
+    }
+    id = addV(u0 + lo * (u1 - u0), v0 + lo * (v1 - v0), bx, by, bz);
+    bCache.set(key, id);
+    return id;
+  }
+
+  // Vertex where the edge s→e crosses z = planeZ, root-found on the surface along the
+  // (u,v) segment. Returns -1 when the surface jumps across the plane instead of crossing
+  // it (an asymptote inside the edge, or an undefined gap): the mesh edge is then a lie
+  // and its triangle is dropped rather than drawn as a false wall.
+  const cCache = new Map();
+  const zSpan = clipZ ? Math.abs(clipZ[1] - clipZ[0]) : 0;
+  function clipVertex(s, e, planeZ, plane) {
+    const key = (s < e ? s + ':' + e : e + ':' + s) + ':' + plane;
+    let id = cCache.get(key);
+    if (id !== undefined) return id;
+    const below = pz[s] < planeZ;
+    let lo = 0, hi = 1;
+    for (let it = 0; it < 22; it++) {
+      const m = 0.5 * (lo + hi);
+      if (!evalAt(pu[s] + m * (pu[e] - pu[s]), pv[s] + m * (pv[e] - pv[s]))) { lo = -1; break; }
+      if ((out[2] < planeZ) === below) lo = m; else hi = m;
+    }
+    id = -1;
+    if (lo >= 0) {
+      const m = 0.5 * (lo + hi);
+      const um = pu[s] + m * (pu[e] - pu[s]), vm = pv[s] + m * (pv[e] - pv[s]);
+      if (evalAt(um, vm) && Math.abs(out[2] - planeZ) <= 0.02 * zSpan) id = addV(um, vm, out[0], out[1], planeZ);
+    }
+    cCache.set(key, id);
+    return id;
+  }
+
   const indices = [];
+  let poly = [], next = [];
+  function emitTri(i0, i1, i2) {
+    if (!clipZ) { indices.push(i0, i1, i2); return; }
+    poly.length = 0; poly.push(i0, i1, i2);
+    for (let plane = 0; plane < 2; plane++) {
+      const planeZ = clipZ[plane];
+      next.length = 0;
+      for (let k = 0; k < poly.length; k++) {
+        const s = poly[k], e = poly[(k + 1) % poly.length];
+        const sIn = plane === 0 ? pz[s] >= planeZ : pz[s] <= planeZ;
+        const eIn = plane === 0 ? pz[e] >= planeZ : pz[e] <= planeZ;
+        if (sIn) next.push(s);
+        if (sIn !== eIn) {
+          const c = clipVertex(s, e, planeZ, plane);
+          if (c < 0) return; // jump, not a crossing: drop the triangle
+          next.push(c);
+        }
+      }
+      const tmp = poly; poly = next; next = tmp;
+      if (poly.length < 3) return;
+    }
+    for (let k = 1; k + 1 < poly.length; k++) indices.push(poly[0], poly[k], poly[k + 1]);
+  }
+
+  // Per cell: walk the corners CCW in (u,v) — a=(i,j) b=(i+1,j) d=(i+1,j+1) c=(i,j+1) —
+  // keeping defined corners and inserting a domain-edge vertex wherever definedness flips.
+  const loop = [];
+  const corner = new Int32Array(4);
   for (let j = 0; j < nv; j++) {
     for (let i = 0; i < nu; i++) {
-      const a = j * W + i, b = a + 1, c = a + W, d = c + 1;
-      if (ok[a] && ok[b] && ok[c] && ok[d]) indices.push(a, b, d, a, d, c);
-      else if (ok[a] && ok[b] && ok[d]) indices.push(a, b, d);
-      else if (ok[a] && ok[d] && ok[c]) indices.push(a, d, c);
-      else if (ok[a] && ok[b] && ok[c]) indices.push(a, b, c);
-      else if (ok[b] && ok[d] && ok[c]) indices.push(b, d, c);
+      const a = j * W + i;
+      corner[0] = a; corner[1] = a + 1; corner[2] = a + W + 1; corner[3] = a + W;
+      loop.length = 0;
+      for (let k = 0; k < 4; k++) {
+        const p = corner[k], q = corner[(k + 1) & 3];
+        const pOk = gid[p] >= 0, qOk = gid[q] >= 0;
+        if (pOk) loop.push(gid[p]);
+        if (pOk !== qOk) loop.push(pOk ? boundaryVertex(p, q) : boundaryVertex(q, p));
+      }
+      // the defined region is the square with corners cut off: convex, so fan from loop[0]
+      for (let k = 1; k + 1 < loop.length; k++) emitTri(loop[0], loop[k], loop[k + 1]);
     }
+  }
+
+  const n = px.length;
+  const pos = new Float32Array(n * 3);
+  let zLo = Infinity, zHi = -Infinity;
+  const used = new Uint8Array(n);
+  for (let k = 0; k < indices.length; k++) used[indices[k]] = 1;
+  for (let k = 0; k < n; k++) {
+    pos[k * 3] = px[k]; pos[k * 3 + 1] = py[k]; pos[k * 3 + 2] = pz[k];
+    if (!used[k]) continue;
+    if (pz[k] < zLo) zLo = pz[k];
+    if (pz[k] > zHi) zHi = pz[k];
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+  // Shade from the surface's own tangents, n = ∂P/∂u × ∂P/∂v (same orientation as the CCW
+  // (u,v) winding): near-vertical walls and clip seams are built from long slivers whose
+  // averaged face normals band; a domain edge falls back to one-sided differences, and a
+  // vertex whose tangents cannot be sampled keeps its averaged normal.
+  {
+    const nrm = geo.getAttribute('normal').array;
+    const hu = (uMax - uMin) / nu * 1e-3, hv = (vMax - vMin) / nv * 1e-3;
+    const P = [0, 0, 0, 0, 0, 0], Q = [0, 0, 0, 0, 0, 0];
+    const tangent = (u, v, du, dv, h, T) => {
+      const okP = evalAt(u + du, v + dv); if (okP) { T[0] = out[0]; T[1] = out[1]; T[2] = out[2]; }
+      const okM = evalAt(u - du, v - dv); if (okM) { T[3] = out[0]; T[4] = out[1]; T[5] = out[2]; }
+      if (okP && okM) return 2 * h;
+      if (!okP && !okM) return 0;
+      if (!evalAt(u, v)) return 0;
+      if (okP) { T[3] = out[0]; T[4] = out[1]; T[5] = out[2]; }
+      else { T[0] = out[0]; T[1] = out[1]; T[2] = out[2]; }
+      return h;
+    };
+    for (let k = 0; k < n; k++) {
+      if (!used[k]) continue;
+      const su = tangent(pu[k], pv[k], hu, 0, hu, P);
+      const sv = tangent(pu[k], pv[k], 0, hv, hv, Q);
+      if (!su || !sv) continue;
+      const ux = (P[0] - P[3]) / su, uy = (P[1] - P[4]) / su, uz = (P[2] - P[5]) / su;
+      const vx = (Q[0] - Q[3]) / sv, vy = (Q[1] - Q[4]) / sv, vz = (Q[2] - Q[5]) / sv;
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const l = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      if (!(l > 0) || !FIN(l)) continue;
+      nrm[k * 3] = nx / l; nrm[k * 3 + 1] = ny / l; nrm[k * 3 + 2] = nz / l;
+    }
+  }
   if (!FIN(zLo)) { zLo = 0; zHi = 1; }
   if (zHi - zLo < 1e-12) { zHi = zLo + 1; }
   return { geo, zRange: [zLo, zHi] };
 }
 
+// Height colormap as a 1-D gradient texture sampled per pixel (u = normalized z). Baked
+// per-vertex colors blend linearly in RGB across a triangle, which bands on the tall
+// slivers of a steep wall; a texture lookup on the interpolated height does not.
 export function applyColormap(geo, cmapName, zRange) {
   const pos = geo.getAttribute('position');
   const n = pos.count;
-  const colors = new Float32Array(n * 3);
-  const cm = colormap(cmapName);
-  const out = [0, 0, 0];
+  const uv = new Float32Array(n * 2);
   const [lo, hi] = zRange;
   const inv = 1 / (hi - lo);
   for (let i = 0; i < n; i++) {
-    cm((pos.getZ(i) - lo) * inv, out);
-    colors[i * 3] = out[0]; colors[i * 3 + 1] = out[1]; colors[i * 3 + 2] = out[2];
+    let t = (pos.getZ(i) - lo) * inv;
+    t = t < 0 ? 0 : t > 1 ? 1 : (FIN(t) ? t : 0);
+    uv[i * 2] = t; uv[i * 2 + 1] = 0.5;
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return colormapTexture(cmapName);
 }
 
-export function surfaceMaterial({ color = '#5b8def', opacity = 1, useVertexColors = false, flat = false }) {
+export function colormapTexture(cmapName, width = 256) {
+  const cm = colormap(cmapName);
+  const data = new Uint8Array(width * 4);
+  const out = [0, 0, 0];
+  for (let i = 0; i < width; i++) {
+    cm(i / (width - 1), out);
+    data[i * 4] = Math.round(out[0] * 255); data[i * 4 + 1] = Math.round(out[1] * 255);
+    data[i * 4 + 2] = Math.round(out[2] * 255); data[i * 4 + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, width, 1, THREE.RGBAFormat);
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter;
+  tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+export function surfaceMaterial({ color = '#5b8def', opacity = 1, useVertexColors = false, map = null, flat = false }) {
   const mat = new THREE.MeshPhysicalMaterial({
-    color: useVertexColors ? 0xffffff : new THREE.Color(color),
+    color: useVertexColors || map ? 0xffffff : new THREE.Color(color),
     vertexColors: useVertexColors,
+    map,
     roughness: 0.5,
     metalness: 0.0,
     clearcoat: 0.12,

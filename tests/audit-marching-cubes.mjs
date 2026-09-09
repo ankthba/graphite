@@ -163,7 +163,7 @@ section('ellipsoid (x/1.2)^2+(y/0.7)^2+(z/0.4)^2=1, unequal domain AND unequal n
 
 // ---------- 5. isolated NaN grid point ----------
 
-section('single NaN grid point inside the surface region: local hole only, finite outputs');
+section('single NaN grid point inside the surface region: healed from its neighbours, finite outputs');
 {
   // sphere grid [-1.6,1.6]^3 res 20 -> grid points at multiples of 0.16; poison exactly one
   // on-surface-adjacent grid point (0.96, 0.16, 0.16).
@@ -182,12 +182,18 @@ section('single NaN grid point inside the surface region: local hole only, finit
     assert(allFinite(res.positions), 'no NaN in positions');
     assert(allFinite(res.normals), 'no NaN in normals (gradient near the hole falls back cleanly)');
     assert(normalsUnit(res.normals), 'normals still unit length');
-    // clean-field reference: poisoning ONE grid point may only remove tris from its 8 incident cells
+    // clean-field reference: the poisoned sample gets a stand-in from its finite neighbours,
+    // so the mesh around it is rebuilt rather than punched out — at most a few tris differ.
     const clean = marchingCubes((x, y, z) => x * x + y * y + z * z - 1,
       { xmin: -1.6, xmax: 1.6, ymin: -1.6, ymax: 1.6, zmin: -1.6, zmax: 1.6, nx: 20, ny: 20, nz: 20 });
     const lost = (clean.positions.length - res.positions.length) / 9;
-    assert(lost >= 1, 'the NaN cell region was actually skipped (lost ' + lost + ' tris)');
-    assert(lost <= 8 * 5, 'only the 8 incident cells skipped, not more (lost ' + lost + ' tris)');
+    assert(Math.abs(lost) <= 8, 'hole healed: within 8 tris of the clean mesh (diff ' + lost + ' tris)');
+    let maxRadErr = 0;
+    for (let o = 0; o < res.positions.length; o += 3) {
+      const r = Math.hypot(res.positions[o], res.positions[o + 1], res.positions[o + 2]);
+      maxRadErr = Math.max(maxRadErr, Math.abs(r - 1));
+    }
+    assert(maxRadErr < 0.02, 'healed region still on the sphere (max radial err ' + maxRadErr.toFixed(5) + ')');
   }
 }
 

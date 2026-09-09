@@ -260,6 +260,39 @@ section('empty outputs');
   assert(res3.positions.length === 0 && res3.normals.length === 0, 'all-NaN field -> empty outputs, no crash');
 }
 
+// ---------- 7. pole along a domain edge ----------
+
+section('1/sqrt(x^2-y) = z on [-5,5]^3 res 48: wall along y=x^2 is continuous, no slivers');
+{
+  const f = (x, y, z) => 1 / Math.sqrt(x * x - y) - z;
+  const res = marchingCubes(f, { xmin: -5, xmax: 5, ymin: -5, ymax: 5, zmin: -5, zmax: 5, nx: 48, ny: 48, nz: 48 });
+  const P = res.positions, N = res.normals;
+  assert(P.length > 0 && P.length % 9 === 0, 'produced triangles');
+  assert(allFinite(P) && allFinite(N), 'finite outputs');
+  assert(normalsUnit(N), 'unit normals');
+  // every vertex is inside the domain and on the surface (relative to its height)
+  let bad = 0, maxRel = 0, minZ = Infinity;
+  for (let o = 0; o < P.length; o += 3) {
+    const x = P[o], y = P[o + 1], z = P[o + 2];
+    if (x * x - y < 0) { bad++; continue; }
+    const zt = 1 / Math.sqrt(x * x - y);
+    const rel = Math.abs(z - zt) / Math.max(1, Math.abs(zt));
+    if (rel > maxRel) maxRel = rel;
+    if (z < minZ) minZ = z;
+  }
+  assert(bad === 0, 'no vertex inside the undefined region y > x^2 (' + bad + ' offenders)');
+  assert(maxRel < 0.05, 'vertices sit on z = 1/sqrt(x^2-y) (max rel err ' + maxRel.toFixed(4) + ')');
+  assert(minZ > 0, 'surface stays above z=0 (min z ' + minZ.toFixed(3) + ')');
+  // The wall must reach the top of the box everywhere along the parabola, not as a comb:
+  // every 0.25-wide x bin on |x| < 2.1 (where y = x^2 is inside the box) has a vertex with z > 4.5.
+  const seen = new Set();
+  for (let o = 0; o < P.length; o += 3) {
+    if (P[o + 2] > 4.5 && Math.abs(P[o]) < 2.1) seen.add(Math.floor((P[o] + 2.1) / 0.25));
+  }
+  const bins = Math.ceil(4.2 / 0.25);
+  assert(seen.size === bins, 'wall reaches z > 4.5 in every x bin along the parabola (' + seen.size + '/' + bins + ')');
+}
+
 // ---------- summary ----------
 
 console.log('');

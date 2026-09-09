@@ -95,11 +95,15 @@ export function marchingCubes(f, opts) -> { positions: Float32Array, normals: Fl
 // f: (x,y,z) => number (may return NaN)
 // opts: { xmin,xmax,ymin,ymax,zmin,zmax, nx,ny,nz, level=0 }
 // Triangle soup: positions.length = 9*numTris. normals: per-vertex, unit length, computed by
-// central differences of f at each output vertex (h = cell size * 0.5), oriented toward DECREASING f
-// … wait: orient toward INCREASING f is the gradient; surface normal should point toward f>level side:
-// use  n = normalize(grad f)  (points toward increasing f). Consistent winding: triangles CCW when
-// viewed from the n side. Cells containing any NaN corner are skipped. Edge vertices are linearly
-// interpolated to the level crossing. Standard 256-entry edge/tri tables.
+// central differences of f at each output vertex (h = cell size * 1e-3, one-sided next to a NaN
+// region), n = normalize(grad f) (points toward increasing f). Consistent winding: triangles CCW when
+// viewed from the n side. Edge vertices are root-found on f along the edge (a linear guess that
+// already sits on the level is kept, so linear fields stay exact). NaN samples next to finite ones
+// get a stand-in value (f just inside the domain edge, by bisection) that fixes only their SIGN;
+// edges running into NaN are bisected on their finite part and end on the domain edge if there is
+// no crossing — so surfaces end cleanly at a domain boundary and poles (1/sqrt(x²−y) = z) become a
+// continuous wall instead of slivers. Cells whose corners are all NaN are skipped.
+// Standard 256-entry edge/tri tables.
 ```
 
 ## src/geometry/contours.js  (pure math, NO three.js imports)

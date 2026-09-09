@@ -133,6 +133,25 @@ $('btn-2d').onclick = () => {
 };
 viewport.onView2DCleared = sync2dBtn;
 
+/* ---------- HUD level-curves toggle (every visible z = f(x,y) surface) ---------- */
+const levelTargets = () => state.items.filter((it) => it.type === 'surface' && it.mode === 'cartesian' && it.visible);
+const syncLevelsBtn = () => {
+  const t = levelTargets();
+  $('btn-levels').classList.toggle('active', t.length > 0 && t.every((it) => it.contours));
+};
+$('btn-levels').onclick = () => {
+  const t = levelTargets();
+  if (!t.length) { toast('Level curves need a z = f(x,y) surface'); return; }
+  const on = !t.every((it) => it.contours);
+  for (const it of t) {
+    state.patch(it.id, on ? { contours: true, contourFloor: true } : { contours: false });
+    panel.rerenderCard(state.get(it.id));
+  }
+  syncLevelsBtn();
+};
+state.on('item-updated', syncLevelsBtn);
+state.on('items-changed', syncLevelsBtn);
+
 if (loaded) {
   // an intentionally empty scene stays empty — only first-ever boot gets the demo
   panel.renderAll();

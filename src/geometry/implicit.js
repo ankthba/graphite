@@ -9,12 +9,12 @@
  *
  * Output is a triangle soup: positions.length === 9 * numTris. normals is per-vertex,
  * unit length, computed by central differences of f at each output vertex with
- * h = cellSize * 0.5 (per axis), i.e. n = normalize(grad f) — pointing toward INCREASING f
- * (the f > level side). Winding is consistent: triangles are CCW when viewed from the
- * side the normal points to. Cells with any NaN corner are skipped. Edge vertices are
- * linearly interpolated to the level crossing. No NaN ever appears in the output arrays
- * (vertices whose gradient is NaN/zero — e.g. adjacent to a NaN region — fall back to the
- * triangle's geometric face normal).
+ * h = cellSize * 1e-3 (per axis, one-sided beside a NaN region), i.e. n = normalize(grad f)
+ * — pointing toward INCREASING f (the f > level side). Winding is consistent: triangles are
+ * CCW when viewed from the side the normal points to. Edge vertices are root-found on f
+ * along the edge; NaN handling is described on marchingCubes below. No NaN ever appears in
+ * the output arrays (vertices whose gradient is NaN/zero fall back to the triangle's
+ * geometric face normal).
  *
  * Uses the canonical 256-entry Lorensen/Cline edge table and Paul Bourke triangle table.
  *
@@ -337,6 +337,21 @@ const EDGE_B = new Uint8Array([1, 2, 2, 3, 5, 6, 6, 7, 4, 5, 6, 7]);
 
 /**
  * Extract the isosurface f(x,y,z) = level as a triangle soup.
+ *
+ * Domain edges and poles. A field like 1/sqrt(x²−y) − z is NaN on one side of a curve and
+ * blows up as it gets there, so the surface is a steep wall hugging the undefined region.
+ * Linear interpolation on the sampled grid cannot place that wall (a single huge corner
+ * value drags the crossing onto its neighbour) and skipping every NaN-touching cell turns
+ * it into a comb of slivers. So:
+ *   1. NaN samples that have a finite axis-neighbour get a stand-in value: f just inside
+ *      the domain edge, found by bisecting from that neighbour. It fixes only the corner's
+ *      SIGN, so a real crossing on the finite part of an edge is still detected.
+ *   2. Every crossed edge is root-found on f itself (a linear guess is kept when it already
+ *      sits on the level, which keeps linear fields exact). Edges that run into NaN are
+ *      bisected on their finite part; if no crossing exists there the vertex lands on the
+ *      domain edge, so the surface ends cleanly instead of in a ragged fringe.
+ * Cells whose corners are all NaN are skipped.
+ *
  * @param {(x:number,y:number,z:number)=>number} f scalar field (may return NaN)
  * @param {{xmin:number,xmax:number,ymin:number,ymax:number,zmin:number,zmax:number,
  *          nx:number,ny:number,nz:number,level?:number}} opts
@@ -354,7 +369,9 @@ export function marchingCubes(f, opts) {
   const dx = (xmax - xmin) / nx;
   const dy = (ymax - ymin) / ny;
   const dz = (zmax - zmin) / nz;
-  const hx = dx * 0.5, hy = dy * 0.5, hz = dz * 0.5; // central-difference steps
+  // Gradient steps for normals: a small fraction of a cell, so steep walls and poles shade
+  // from the true local gradient instead of a half-cell average (which scallops them).
+  const hx = dx * 1e-3, hy = dy * 1e-3, hz = dz * 1e-3;
 
   // Precomputed axis coordinates (shared by all cells -> exact shared vertices).
   const xs = new Float64Array(sx);
@@ -364,8 +381,12 @@ export function marchingCubes(f, opts) {
   for (let j = 0; j < sy; j++) ys[j] = ymin + j * dy;
   for (let k = 0; k < sz; k++) zs[k] = zmin + k * dz;
 
-  // Sample the field once on the full grid.
-  const grid = new Float64Array(sx * sy * sz);
+  const SJ = sx;        // +1 in j
+  const SK = sx * sy;   // +1 in k
+  const NP = sx * sy * sz;
+
+  // ---- pass 1: sample the field once on the full grid.
+  const grid = new Float64Array(NP);
   {
     let p = 0;
     for (let k = 0; k < sz; k++) {
@@ -376,8 +397,103 @@ export function marchingCubes(f, opts) {
       }
     }
   }
-  const SJ = sx;        // +1 in j
-  const SK = sx * sy;   // +1 in k
+
+  // ---- pass 2: stand-in values for NaN samples next to finite ones.
+  // kind: 0 = sampled value, 1 = NaN with a stand-in (sign only), 2 = NaN, no finite neighbour.
+  const kind = new Uint8Array(NP);
+  const STEP = [1, SJ, SK];
+  // f at the last finite point walking from grid point p0 (finite) toward p1 (NaN).
+  function boundaryValue(p0, p1) {
+    const i0 = p0 % sx, j0 = ((p0 / sx) | 0) % sy, k0 = (p0 / SK) | 0;
+    const i1 = p1 % sx, j1 = ((p1 / sx) | 0) % sy, k1 = (p1 / SK) | 0;
+    const x0 = xs[i0], y0 = ys[j0], z0 = zs[k0];
+    const ex = xs[i1] - x0, ey = ys[j1] - y0, ez = zs[k1] - z0;
+    let lo = 0, hi = 1, vlo = grid[p0];
+    for (let it = 0; it < 12; it++) {
+      const m = 0.5 * (lo + hi);
+      const v = +f(x0 + m * ex, y0 + m * ey, z0 + m * ez);
+      if (v !== v) hi = m; else { lo = m; vlo = v; }
+    }
+    return vlo;
+  }
+  {
+    let p = 0;
+    for (let k = 0; k < sz; k++) {
+      for (let j = 0; j < sy; j++) {
+        for (let i = 0; i < sx; i++, p++) {
+          if (grid[p] === grid[p]) continue; // finite (or ±Inf): keep
+          let best = NaN, bestMag = -1;
+          for (let ax = 0; ax < 3; ax++) {
+            const s = STEP[ax];
+            const idx = ax === 0 ? i : ax === 1 ? j : k;
+            const n = ax === 0 ? sx : ax === 1 ? sy : sz;
+            if (idx > 0 && grid[p - s] === grid[p - s]) {
+              const v = boundaryValue(p - s, p);
+              const mag = Math.abs(v - level);
+              if (mag > bestMag) { bestMag = mag; best = v; }
+            }
+            if (idx < n - 1 && grid[p + s] === grid[p + s]) {
+              const v = boundaryValue(p + s, p);
+              const mag = Math.abs(v - level);
+              if (mag > bestMag) { bestMag = mag; best = v; }
+            }
+          }
+          if (best === best) { grid[p] = best; kind[p] = 1; } else kind[p] = 2;
+        }
+      }
+    }
+  }
+
+  // ---- edge roots. t in [0,1] from grid point pa toward pb (canonical +axis order, so
+  // every cell sharing the edge gets the bitwise-identical vertex). Cached per edge.
+  const tCache = new Map();
+  function edgeT(pa, pb, axis, ka, kb) {
+    const key = pa * 3 + axis;
+    const hit = tCache.get(key);
+    if (hit !== undefined) return hit;
+    const ia = pa % sx, ja = ((pa / sx) | 0) % sy, kk = (pa / SK) | 0;
+    const x0 = xs[ia], y0 = ys[ja], z0 = zs[kk];
+    const ex = axis === 0 ? dx : 0, ey = axis === 1 ? dy : 0, ez = axis === 2 ? dz : 0;
+    const va = grid[pa], vb = grid[pb];
+    let t;
+    if (ka === 0 && kb === 0) {
+      // both sampled: linear guess, kept if it already sits on the level, else bisect.
+      const d = vb - va;
+      t = d === 0 ? 0.5 : (level - va) / d;
+      if (!(t >= 0)) t = 0; else if (t > 1) t = 1;
+      const ft = +f(x0 + t * ex, y0 + t * ey, z0 + t * ez);
+      const scale = Math.abs(va - level) + Math.abs(vb - level);
+      if (!(ft === ft && scale < Infinity && Math.abs(ft - level) <= 1e-9 * scale)) {
+        const sa = va < level;
+        let lo = 0, hi = 1;
+        if (ft === ft) { if ((ft < level) === sa) lo = t; else hi = t; }
+        for (let it = 0; it < 12; it++) {
+          const m = 0.5 * (lo + hi);
+          const v = +f(x0 + m * ex, y0 + m * ey, z0 + m * ez);
+          if (v !== v || (v < level) === sa) lo = m; else hi = m;
+        }
+        t = 0.5 * (lo + hi);
+      }
+    } else if (ka === 0 || kb === 0) {
+      // one end undefined: bisect on the finite part; no crossing -> the domain edge.
+      const fromA = ka === 0;
+      const sa = (fromA ? va : vb) < level;
+      let lo = 0, hi = 1, bracket = false;
+      for (let it = 0; it < 16; it++) {
+        const m = 0.5 * (lo + hi);
+        const s = fromA ? m : 1 - m;
+        const v = +f(x0 + s * ex, y0 + s * ey, z0 + s * ez);
+        if (v !== v) { hi = m; continue; }
+        if ((v < level) === sa) lo = m; else { hi = m; bracket = true; }
+      }
+      const u = bracket ? 0.5 * (lo + hi) : lo;
+      t = fromA ? u : 1 - u;
+    } else {
+      t = 0.5; // both ends undefined: nothing to refine against
+    }
+    tCache.set(key, t);
+    return t;
+  }
 
   // Growable output buffers (floats), doubled on demand.
   let cap = 9 * 512;
@@ -392,52 +508,57 @@ export function marchingCubes(f, opts) {
     cap = c;
   }
 
+  // One gradient component: central difference, falling back to a one-sided difference
+  // when the far sample is undefined (vertices on a domain edge keep smooth shading).
+  let fc = NaN; // f at the vertex, evaluated lazily
+  function gradComp(px, py, pz, h, ax) {
+    const fp = +f(px + (ax === 0 ? h : 0), py + (ax === 1 ? h : 0), pz + (ax === 2 ? h : 0));
+    const fm = +f(px - (ax === 0 ? h : 0), py - (ax === 1 ? h : 0), pz - (ax === 2 ? h : 0));
+    if (fp === fp && fm === fm) return (fp - fm) / (2 * h);
+    if (fc !== fc) fc = +f(px, py, pz);
+    if (fp === fp) return (fp - fc) / h;
+    if (fm === fm) return (fc - fm) / h;
+    return NaN;
+  }
+
   // Per-cell scratch (no per-cell allocation).
-  const cv = new Float64Array(8);   // corner values
+  const cp = new Int32Array(8);     // corner grid indices
   const ex = new Float64Array(12);  // edge-vertex coords
   const ey = new Float64Array(12);
   const ez = new Float64Array(12);
+  const EDGE_AXIS = new Uint8Array([0, 1, 0, 1, 0, 1, 0, 1, 2, 2, 2, 2]);
 
   for (let k = 0; k < nz; k++) {
     for (let j = 0; j < ny; j++) {
       let base = k * SK + j * SJ;
       for (let i = 0; i < nx; i++, base++) {
-        const v0 = grid[base];
-        const v1 = grid[base + 1];
-        const v3 = grid[base + SJ];
-        const v2 = grid[base + SJ + 1];
-        const v4 = grid[base + SK];
-        const v5 = grid[base + SK + 1];
-        const v7 = grid[base + SK + SJ];
-        const v6 = grid[base + SK + SJ + 1];
+        cp[0] = base;           cp[1] = base + 1;
+        cp[3] = base + SJ;      cp[2] = base + SJ + 1;
+        cp[4] = base + SK;      cp[5] = base + SK + 1;
+        cp[7] = base + SK + SJ; cp[6] = base + SK + SJ + 1;
 
-        // Skip cells with any NaN corner. (NaN !== NaN)
-        if (v0 !== v0 || v1 !== v1 || v2 !== v2 || v3 !== v3 ||
-            v4 !== v4 || v5 !== v5 || v6 !== v6 || v7 !== v7) continue;
-
+        // Corner signs. Undefined corners without a stand-in borrow the sign of the
+        // first corner that has one; a cell with no usable corner at all is skipped.
+        let ref = -1;
+        for (let c = 0; c < 8; c++) if (kind[cp[c]] !== 2) { ref = c; break; }
+        if (ref < 0) continue;
+        const refBelow = grid[cp[ref]] < level;
         let ci = 0;
-        if (v0 < level) ci |= 1;
-        if (v1 < level) ci |= 2;
-        if (v2 < level) ci |= 4;
-        if (v3 < level) ci |= 8;
-        if (v4 < level) ci |= 16;
-        if (v5 < level) ci |= 32;
-        if (v6 < level) ci |= 64;
-        if (v7 < level) ci |= 128;
+        for (let c = 0; c < 8; c++) {
+          const p = cp[c];
+          const below = kind[p] === 2 ? refBelow : grid[p] < level;
+          if (below) ci |= 1 << c;
+        }
         if (ci === 0 || ci === 255) continue;
 
         const edges = EDGE_TABLE[ci];
-        cv[0] = v0; cv[1] = v1; cv[2] = v2; cv[3] = v3;
-        cv[4] = v4; cv[5] = v5; cv[6] = v6; cv[7] = v7;
 
-        // Interpolate crossed edges.
+        // Locate crossed edges.
         for (let e = 0; e < 12; e++) {
           if (!(edges & (1 << e))) continue;
           const a = EDGE_A[e], b = EDGE_B[e];
-          const va = cv[a], vb = cv[b];
-          const d = vb - va;
-          let t = d === 0 ? 0.5 : (level - va) / d;
-          if (t < 0) t = 0; else if (t > 1) t = 1;
+          const pa = cp[a], pb = cp[b];
+          const t = edgeT(pa, pb, EDGE_AXIS[e], kind[pa], kind[pb]);
           const ax = xs[i + CORNER_DX[a]], ay = ys[j + CORNER_DY[a]], az = zs[k + CORNER_DZ[a]];
           ex[e] = ax + t * (xs[i + CORNER_DX[b]] - ax);
           ey[e] = ay + t * (ys[j + CORNER_DY[b]] - ay);
@@ -470,10 +591,11 @@ export function marchingCubes(f, opts) {
           for (let q = 0; q < 3; q++) {
             const o = len + 3 * q;
             const px = pos[o], py = pos[o + 1], pz = pos[o + 2];
-            // n = normalize(grad f), central differences, h = half cell size per axis.
-            let gx = (+f(px + hx, py, pz) - +f(px - hx, py, pz)) / (2 * hx);
-            let gy = (+f(px, py + hy, pz) - +f(px, py - hy, pz)) / (2 * hy);
-            let gz = (+f(px, py, pz + hz) - +f(px, py, pz - hz)) / (2 * hz);
+            // n = normalize(grad f), central differences (one-sided at a domain edge).
+            fc = NaN;
+            const gx = gradComp(px, py, pz, hx, 0);
+            const gy = gradComp(px, py, pz, hy, 1);
+            const gz = gradComp(px, py, pz, hz, 2);
             const gl = Math.sqrt(gx * gx + gy * gy + gz * gz);
             if (gl > 0 && gl < Infinity && gl === gl) {
               nrm[o] = gx / gl; nrm[o + 1] = gy / gl; nrm[o + 2] = gz / gl;
