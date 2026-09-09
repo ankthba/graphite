@@ -203,8 +203,7 @@ section('NaN region: sqrt(x) + y^2 + z^2 - 0.5 (NaN for x<0)');
     // no vertex may lie strictly inside the NaN region (cells with NaN corners skipped)
     let minX = Infinity;
     for (let o = 0; o < res.positions.length; o += 3) minX = Math.min(minX, res.positions[o]);
-    const dx = 2 / 24;
-    assert(minX >= -dx - 1e-9, 'no vertex deeper than one cell into the NaN region (minX ' + minX.toFixed(4) + ')');
+    assert(minX >= -1e-6, 'no vertex inside the NaN region x < 0 (minX ' + minX.toExponential(2) + ')');
   }
 }
 

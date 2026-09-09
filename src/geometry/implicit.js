@@ -335,6 +335,8 @@ const CORNER_DZ = new Uint8Array([0, 0, 0, 0, 1, 1, 1, 1]);
 const EDGE_A = new Uint8Array([0, 1, 3, 0, 4, 5, 7, 4, 0, 1, 2, 3]);
 const EDGE_B = new Uint8Array([1, 2, 2, 3, 5, 6, 6, 7, 4, 5, 6, 7]);
 
+import { bracketRoot } from './root.js';
+
 /**
  * Extract the isosurface f(x,y,z) = level as a triangle soup.
  *
@@ -349,7 +351,9 @@ const EDGE_B = new Uint8Array([1, 2, 2, 3, 5, 6, 6, 7, 4, 5, 6, 7]);
  *   2. Every crossed edge is root-found on f itself (a linear guess is kept when it already
  *      sits on the level, which keeps linear fields exact). Edges that run into NaN are
  *      bisected on their finite part; if no crossing exists there the vertex lands on the
- *      domain edge, so the surface ends cleanly instead of in a ragged fringe.
+ *      domain edge, so the surface ends cleanly instead of in a ragged fringe. Triangles
+ *      with a vertex on an edge whose ends are BOTH undefined are dropped (nothing is ever
+ *      drawn inside the undefined region).
  * Cells whose corners are all NaN are skipped.
  *
  * @param {(x:number,y:number,z:number)=>number} f scalar field (may return NaN)
@@ -400,7 +404,10 @@ export function marchingCubes(f, opts) {
 
   // ---- pass 2: stand-in values for NaN samples next to finite ones.
   // kind: 0 = sampled value, 1 = NaN with a stand-in (sign only), 2 = NaN, no finite neighbour.
+  // Neighbours are judged on the pristine samples (raw), never on stand-ins already written,
+  // so stand-ins cannot cascade across the undefined region.
   const kind = new Uint8Array(NP);
+  const raw = grid.slice();
   const STEP = [1, SJ, SK];
   // f at the last finite point walking from grid point p0 (finite) toward p1 (NaN).
   function boundaryValue(p0, p1) {
@@ -408,7 +415,7 @@ export function marchingCubes(f, opts) {
     const i1 = p1 % sx, j1 = ((p1 / sx) | 0) % sy, k1 = (p1 / SK) | 0;
     const x0 = xs[i0], y0 = ys[j0], z0 = zs[k0];
     const ex = xs[i1] - x0, ey = ys[j1] - y0, ez = zs[k1] - z0;
-    let lo = 0, hi = 1, vlo = grid[p0];
+    let lo = 0, hi = 1, vlo = raw[p0];
     for (let it = 0; it < 12; it++) {
       const m = 0.5 * (lo + hi);
       const v = +f(x0 + m * ex, y0 + m * ey, z0 + m * ez);
@@ -421,18 +428,18 @@ export function marchingCubes(f, opts) {
     for (let k = 0; k < sz; k++) {
       for (let j = 0; j < sy; j++) {
         for (let i = 0; i < sx; i++, p++) {
-          if (grid[p] === grid[p]) continue; // finite (or ±Inf): keep
+          if (raw[p] === raw[p]) continue; // finite (or ±Inf): keep
           let best = NaN, bestMag = -1;
           for (let ax = 0; ax < 3; ax++) {
             const s = STEP[ax];
             const idx = ax === 0 ? i : ax === 1 ? j : k;
             const n = ax === 0 ? sx : ax === 1 ? sy : sz;
-            if (idx > 0 && grid[p - s] === grid[p - s]) {
+            if (idx > 0 && raw[p - s] === raw[p - s]) {
               const v = boundaryValue(p - s, p);
               const mag = Math.abs(v - level);
               if (mag > bestMag) { bestMag = mag; best = v; }
             }
-            if (idx < n - 1 && grid[p + s] === grid[p + s]) {
+            if (idx < n - 1 && raw[p + s] === raw[p + s]) {
               const v = boundaryValue(p + s, p);
               const mag = Math.abs(v - level);
               if (mag > bestMag) { bestMag = mag; best = v; }
@@ -455,41 +462,37 @@ export function marchingCubes(f, opts) {
     const x0 = xs[ia], y0 = ys[ja], z0 = zs[kk];
     const ex = axis === 0 ? dx : 0, ey = axis === 1 ? dy : 0, ez = axis === 2 ? dz : 0;
     const va = grid[pa], vb = grid[pb];
+    const g = (t) => +f(x0 + t * ex, y0 + t * ey, z0 + t * ez) - level;
     let t;
     if (ka === 0 && kb === 0) {
-      // both sampled: linear guess, kept if it already sits on the level, else bisect.
+      // both sampled: linear guess, kept if it already sits on the level, else root-found.
       const d = vb - va;
       t = d === 0 ? 0.5 : (level - va) / d;
       if (!(t >= 0)) t = 0; else if (t > 1) t = 1;
-      const ft = +f(x0 + t * ex, y0 + t * ey, z0 + t * ez);
+      const gt = g(t);
       const scale = Math.abs(va - level) + Math.abs(vb - level);
-      if (!(ft === ft && scale < Infinity && Math.abs(ft - level) <= 1e-9 * scale)) {
-        const sa = va < level;
-        let lo = 0, hi = 1;
-        if (ft === ft) { if ((ft < level) === sa) lo = t; else hi = t; }
-        for (let it = 0; it < 12; it++) {
-          const m = 0.5 * (lo + hi);
-          const v = +f(x0 + m * ex, y0 + m * ey, z0 + m * ez);
-          if (v !== v || (v < level) === sa) lo = m; else hi = m;
-        }
-        t = 0.5 * (lo + hi);
+      if (!(gt === gt && scale < Infinity && Math.abs(gt) <= 1e-9 * scale)) {
+        let lo = 0, hi = 1, glo = va - level, ghi = vb - level;
+        if (gt === gt) { if ((gt < 0) === (glo < 0)) { lo = t; glo = gt; } else { hi = t; ghi = gt; } }
+        t = bracketRoot(g, lo, hi, glo, ghi, t, gt);
       }
     } else if (ka === 0 || kb === 0) {
-      // one end undefined: bisect on the finite part; no crossing -> the domain edge.
+      // one end undefined: find a sign change on the finite part (walking from the defined
+      // end), then root-find inside it; no crossing -> the domain edge.
       const fromA = ka === 0;
-      const sa = (fromA ? va : vb) < level;
-      let lo = 0, hi = 1, bracket = false;
-      for (let it = 0; it < 16; it++) {
+      const gw = fromA ? g : (u) => g(1 - u); // walking parameter u: 0 = defined end
+      let lo = 0, hi = 1, glo = (fromA ? va : vb) - level, ghi = NaN;
+      for (let it = 0; it < 16 && ghi !== ghi; it++) {
         const m = 0.5 * (lo + hi);
-        const s = fromA ? m : 1 - m;
-        const v = +f(x0 + s * ex, y0 + s * ey, z0 + s * ez);
-        if (v !== v) { hi = m; continue; }
-        if ((v < level) === sa) lo = m; else { hi = m; bracket = true; }
+        const v = gw(m);
+        if (v !== v) hi = m;
+        else if ((v < 0) === (glo < 0)) { lo = m; glo = v; }
+        else ghi = v, hi = m;
       }
-      const u = bracket ? 0.5 * (lo + hi) : lo;
+      const u = ghi === ghi ? bracketRoot(gw, lo, hi, glo, ghi) : lo;
       t = fromA ? u : 1 - u;
     } else {
-      t = 0.5; // both ends undefined: nothing to refine against
+      t = NaN; // both ends undefined: nothing to locate against -> its triangles are dropped
     }
     tCache.set(key, t);
     return t;
@@ -570,11 +573,13 @@ export function marchingCubes(f, opts) {
         // so emit each triangle with its 2nd and 3rd vertices swapped.
         for (let m = ci << 4; TRI_TABLE[m] !== -1; m += 3) {
           const e0 = TRI_TABLE[m], e1 = TRI_TABLE[m + 2], e2 = TRI_TABLE[m + 1];
-          if (len + 9 > cap) grow(len + 9);
 
           const x0 = ex[e0], y0 = ey[e0], z0 = ez[e0];
           const x1 = ex[e1], y1 = ey[e1], z1 = ez[e1];
           const x2 = ex[e2], y2 = ey[e2], z2 = ez[e2];
+          // a vertex on an edge with both ends undefined would sit inside the NaN region
+          if (x0 !== x0 || x1 !== x1 || x2 !== x2) continue;
+          if (len + 9 > cap) grow(len + 9);
 
           // Geometric face normal (fallback when the field gradient is unusable).
           let fnx = (y1 - y0) * (z2 - z0) - (z1 - z0) * (y2 - y0);

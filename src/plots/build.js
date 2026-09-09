@@ -5,6 +5,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { marchingCubes } from '../geometry/implicit.js';
 import { marchingSquares } from '../geometry/contours.js';
 import { colormap } from '../colormaps.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LINE_RESOLUTION } from '../engine/lineres.js';
 
 export function disposeDeep(obj) {
   obj.traverse((o) => {
@@ -240,6 +244,8 @@ export function surfaceMaterial({ color = '#5b8def', opacity = 1, useVertexColor
     envMapIntensity: 0.35,
     side: THREE.DoubleSide,
     flatShading: flat,
+    // push the surface back a hair in depth so level curves drawn on it never z-fight
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
     transparent: opacity < 1,
     opacity,
     depthWrite: opacity >= 1,
@@ -462,19 +468,22 @@ function contourLines(entries, { zRange, cmapName, floorZ, onSurface, onFloor })
       }
     }
   }
-  const mk = (pts, cols, opacity) => {
+  // screen-space fat lines (WebGL ignores LineBasicMaterial.linewidth)
+  const mk = (pts, cols, opacity, width) => {
     if (!pts.length) return;
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
-      vertexColors: true, transparent: true, opacity, linewidth: 1,
-    }));
+    const g = new LineSegmentsGeometry();
+    g.setPositions(pts);
+    g.setColors(cols);
+    const m = new LineMaterial({
+      vertexColors: true, transparent: true, opacity, linewidth: width, worldUnits: false,
+    });
+    m.resolution = LINE_RESOLUTION;
+    const l = new LineSegments2(g, m);
     l.userData.unpickable = true;
     group.add(l);
   };
-  mk(positions, colors, 0.95);
-  mk(fPositions, fColors, 0.8);
+  mk(positions, colors, 0.95, 2.6);
+  mk(fPositions, fColors, 0.85, 2.2);
   return group;
 }
 

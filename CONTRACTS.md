@@ -113,7 +113,9 @@ export function marchingSquares(f, opts) -> Array<{ level:number, paths: Float32
 // f: (x,y) => number (may return NaN); opts: { xmin,xmax,ymin,ymax, nx,ny, levels:number[] }
 // Each path is [x0,y0, x1,y1, ...] (a polyline, ≥2 points). Segments from adjacent cells that share
 // endpoints (within 1e-9 of cell size) MUST be joined into long polylines; closed loops should
-// close (first==last point). Cells with NaN corners skipped. Saddle cells: resolve via center average.
+// close (first==last point). NaN samples beside defined ones get a sign-only stand-in (f just inside
+// the domain edge, by bisection) and crossings on edges into NaN are root-found on f, so contours reach
+// domain edges and poles; cells whose corners are all NaN are skipped. Saddle cells: resolve via center average.
 ```
 
 ## Testing requirement (for module authors)

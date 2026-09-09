@@ -136,5 +136,41 @@ function check(cond, msg) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 5) Pole along a domain edge: f = 1/sqrt(x^2 - y) (NaN for y > x^2) at level 5.
+//    The contour y = x^2 - 0.04 hugs the undefined region closer than one cell; it must
+//    come out as one continuous curve on the true parabola, not dashes.
+// ---------------------------------------------------------------------------
+{
+  const f = (x, y) => 1 / Math.sqrt(x * x - y);
+  const res = marchingSquares(f, { xmin: -5, xmax: 5, ymin: -5, ymax: 5, nx: 150, ny: 150, levels: [5] });
+  const paths = res[0].paths;
+  check(paths.length >= 1 && paths.length <= 3, `pole: one continuous curve, not fragments (${paths.length} paths)`);
+  let maxDev = 0, xmin = Infinity, xmax = -Infinity, bad = 0;
+  for (const p of paths) {
+    for (let k = 0; k < p.length; k += 2) {
+      const x = p[k], y = p[k + 1];
+      if (!Number.isFinite(x) || !Number.isFinite(y)) { bad++; continue; }
+      maxDev = Math.max(maxDev, Math.abs(x * x - y - 0.04));
+      xmin = Math.min(xmin, x); xmax = Math.max(xmax, x);
+    }
+  }
+  check(bad === 0, 'pole: finite vertices');
+  check(maxDev < 2e-3, `pole: vertices on y = x^2 - 0.04 (max dev ${maxDev.toExponential(2)})`);
+  check(xmin < -2.1 && xmax > 2.1, `pole: curve spans the box (x from ${xmin.toFixed(2)} to ${xmax.toFixed(2)})`);
+}
+
+// 6) NaN region with no pole: sqrt(x) + y^2 at level 1 ends cleanly on the edge x = 0
+{
+  const res = marchingSquares((x, y) => Math.sqrt(x) + y * y, { xmin: -1, xmax: 2, ymin: -2, ymax: 2, nx: 90, ny: 120, levels: [1] });
+  let minX = Infinity, maxErr = 0;
+  for (const p of res[0].paths) for (let k = 0; k < p.length; k += 2) {
+    minX = Math.min(minX, p[k]);
+    maxErr = Math.max(maxErr, Math.abs(Math.sqrt(Math.max(0, p[k])) + p[k + 1] * p[k + 1] - 1));
+  }
+  check(minX >= -1e-6, `sqrt edge: no vertex inside x < 0 (min x ${minX.toExponential(2)})`);
+  check(maxErr < 0.02, `sqrt edge: vertices on the level set (max err ${maxErr.toExponential(2)})`);
+}
+
 console.log(`test-contours: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

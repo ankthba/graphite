@@ -71,15 +71,6 @@ export class PlotManager {
     }
     if (obj) {
       obj.userData.itemId = item.id;
-      // solid geometry drops a soft shadow on the floor; translucent meshes
-      // (trace planes, Riemann boxes, tinted overlays) must not cast
-      const solid = (item.opacity ?? 1) >= 0.6;
-      obj.traverse((o) => {
-        if ((o.isMesh || o.isInstancedMesh) && !o.isSprite) {
-          const m = o.material;
-          o.castShadow = solid && !(m && m.transparent && m.opacity < 0.6);
-        }
-      });
       this.objects.set(item.id, obj);
       this.viewport.plotRoot.add(obj);
     }
