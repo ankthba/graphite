@@ -420,6 +420,25 @@ export function buildContoursObject(f2, {
   xmin, xmax, ymin, ymax, nx = 160, ny = 160, levels, zRange, cmapName, floorZ, onSurface = true, onFloor = true,
 }) {
   const res = marchingSquares((x, y) => f2(x, y), { xmin, xmax, ymin, ymax, nx, ny, levels });
+  return contourLines(res, { zRange, cmapName, floorZ, onSurface, onFloor });
+}
+
+// Level curves of a level surface F(x,y,z) = k: for each height c the slice F(x,y,c) = k,
+// traced with marching squares in the plane z = c.
+export function buildImplicitContoursObject(f3, k, {
+  xmin, xmax, ymin, ymax, nx = 160, ny = 160, heights, zRange, cmapName, floorZ, onSurface = true, onFloor = true,
+}) {
+  const res = [];
+  for (const c of heights) {
+    const r = marchingSquares((x, y) => f3(x, y, c), { xmin, xmax, ymin, ymax, nx, ny, levels: [k] });
+    for (const { paths } of r) res.push({ level: c, paths });
+  }
+  return contourLines(res, { zRange, cmapName, floorZ, onSurface, onFloor });
+}
+
+// entries: [{ level: height z, paths: [x0,y0,x1,y1,...][] }] -> line segments on the surface
+// (lifted a hair above z = level) and/or projected onto the floor.
+function contourLines(entries, { zRange, cmapName, floorZ, onSurface, onFloor }) {
   const group = new THREE.Group();
   const cm = colormap(cmapName || 'viridis');
   const [lo, hi] = zRange;
@@ -427,7 +446,7 @@ export function buildContoursObject(f2, {
   const eps = (hi - lo) * 0.004;
   const positions = [], colors = [], fPositions = [], fColors = [];
   const c = [0, 0, 0];
-  for (const { level, paths } of res) {
+  for (const { level, paths } of entries) {
     cm((level - lo) * inv, c);
     const cr = c[0] * 0.85, cg = c[1] * 0.85, cb = c[2] * 0.85;
     for (const path of paths) {

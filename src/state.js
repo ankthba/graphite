@@ -44,6 +44,7 @@ export const TYPE_DEFAULTS = {
   implicit: () => ({
     type: 'implicit', expr: 'x^2 + y^2 + z^2', level: '9', res: 48,
     cmap: '', color: nextColor(), opacity: 1, wire: false,
+    contours: false, contourCount: 12, contourFloor: false,
   }),
   field: () => ({
     type: 'field', ep: '-y', eq: 'x', er: 'z/2',

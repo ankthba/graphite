@@ -5,7 +5,7 @@ import { parse } from '../math/parser.js';
 import { freeVars } from '../math/compiler.js';
 import {
   gridSurfaceGeometry, applyColormap, surfaceMaterial, wireframeOverlay,
-  buildCurveObject, buildVectorFieldObject, buildImplicitGeometry,
+  buildCurveObject, buildVectorFieldObject, buildImplicitGeometry, buildImplicitContoursObject,
   buildContoursObject, buildPointObject, makeArrow, disposeDeep,
   buildSectionObject, buildRiemannBoxes,
 } from './build.js';
@@ -425,6 +425,20 @@ export class PlotManager {
     }));
     mesh.renderOrder = item.opacity < 1 ? 2 : 0;
     group.add(mesh);
+
+    if (item.contours && geo.getAttribute('position').count > 0) {
+      const n = Math.max(2, (item.contourCount || 12) | 0);
+      const [lo, hi] = zRange;
+      const heights = [];
+      for (let i = 1; i <= n; i++) heights.push(lo + (hi - lo) * (i / (n + 1)));
+      group.add(buildImplicitContoursObject(fns.expr, level, {
+        xmin: B.xmin, xmax: B.xmax, ymin: B.ymin, ymax: B.ymax,
+        nx: 150, ny: 150, heights, zRange,
+        cmapName: item.cmap || 'viridis',
+        floorZ: B.zmin + (B.zmax - B.zmin) * 0.002,
+        onSurface: true, onFloor: item.contourFloor,
+      }));
+    }
     return group;
   }
 

@@ -133,15 +133,16 @@ $('btn-2d').onclick = () => {
 };
 viewport.onView2DCleared = sync2dBtn;
 
-/* ---------- HUD level-curves toggle (every visible z = f(x,y) surface) ---------- */
-const levelTargets = () => state.items.filter((it) => it.type === 'surface' && it.mode === 'cartesian' && it.visible);
+/* ---------- HUD level-curves toggle (every visible z = f(x,y) surface and level surface) ---------- */
+const levelTargets = () => state.items.filter((it) =>
+  it.visible && ((it.type === 'surface' && it.mode === 'cartesian') || it.type === 'implicit'));
 const syncLevelsBtn = () => {
   const t = levelTargets();
   $('btn-levels').classList.toggle('active', t.length > 0 && t.every((it) => it.contours));
 };
 $('btn-levels').onclick = () => {
   const t = levelTargets();
-  if (!t.length) { toast('Level curves need a z = f(x,y) surface'); return; }
+  if (!t.length) { toast('Level curves need a z = f(x,y) surface or a level surface F(x,y,z) = k'); return; }
   const on = !t.every((it) => it.contours);
   for (const it of t) {
     state.patch(it.id, on ? { contours: true, contourFloor: true } : { contours: false });

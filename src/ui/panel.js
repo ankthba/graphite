@@ -719,6 +719,11 @@ export class Panel {
     this.advSection(item, body, (sec) => {
       this.rangeRow(sec, 'Detail', item.res, 20, 90, 2, (v) => `${v}³`, (v) => this.state.patch(item.id, { res: v }));
       this.rangeRow(sec, 'Opacity', item.opacity, 0.1, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => this.state.patch(item.id, { opacity: v }));
+      this.checkRow(sec, 'Level curves drawn on the surface (slices z = c)', item.contours, (v) => { this.state.patch(item.id, { contours: v }); this.rerenderCard(this.state.get(item.id)); });
+      if (item.contours) {
+        this.checkRow(sec, 'Also project them onto the floor (topo map)', item.contourFloor, (v) => this.state.patch(item.id, { contourFloor: v }));
+        this.rangeRow(sec, 'Levels', item.contourCount || 12, 4, 30, 1, (v) => `${v}`, (v) => this.state.patch(item.id, { contourCount: v }));
+      }
     });
   }
 
